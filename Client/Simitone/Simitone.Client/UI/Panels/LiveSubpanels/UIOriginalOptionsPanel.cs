@@ -145,6 +145,7 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
             public Func<bool> IsOn; public Func<int> IntValue; public Action Toggle;
             public string Group;                              // radio group id
             public UIElement Widget;
+            public UIOriginalText Label;                      // UI-39 quick-tip hover site (caption)
         }
         public List<MainButtonInfo> Mains = new List<MainButtonInfo>();
         public List<OptRow> Rows = new List<OptRow>();
@@ -225,6 +226,10 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
 
         public override void Update(UpdateState state)
         {
+            // UI-39: the quick-tip dwell pump runs every frame (arming must
+            // work with no popup open); the legacy hover-out dismissal below
+            // then applies to whatever popup exists after the pump.
+            QuickTipProcess(QuickTipHitTest(state), QuickTipClock());
             base.Update(state);
             if (CurrentPopup == null) return;
             // cWinOptions::TSOnMouseExit{Child} dismisses the informational
@@ -234,6 +239,88 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
             var mouse = GetMousePosition(state.MouseState);
             if (mouse.X < 0 || mouse.Y < 0 || mouse.X >= Size.X || mouse.Y >= Size.Y)
                 ClosePopup();
+        }
+
+        // ---- UI-39: the native Quick Tips hover-dwell law --------------------
+        // Decode receipt: coordination/evidence/UI-39/quicktips-decode.md
+        // (disasm: worktrees/ui39/tools/iff-dump/r266-quicktips/).
+        //   cOptionsMgr::SetQuickTips(b) @0x239ce2: option ON -> dwell global
+        //   250 ms; OFF -> 750 ms AND the per-window broadcast (SetQuickTips on
+        //   cWinOptions/cWinCamPanel/cWinPeople + subpanels/cWinRoofPanel)
+        //   DISARMS the panel buttons (cTSWinBtn +0x14c = 0). TSOnMouseEnter
+        //   @0x50b702 arms (+0x164=1, +0x154=now) iff armed; TSPaint @0x50cdc0
+        //   fires SendButtonCommand(0x13) once now-start > dwell (then clears
+        //   the arm); TSOnMouseExit @0x50b460 sends 0x14. The cWinOptions
+        //   0x13/0x14 block @0x282b04 loads the button's tip triple
+        //   (+0xa4 {name, desc, bmp}) into the SAME cWinLivePopup client the
+        //   About-click path uses — so a dwell fire routes through OpenPopup
+        //   (which already carries the native same-button toggle), and
+        //   leaving the row closes a quick-tip-opened popup (same-button
+        //   DisablePopup). Not ported (disclosed): the tier-2 Product-built
+        //   buttons stay armed at 750 ms when the option is OFF, and the rare
+        //   native retarget-without-close edge (0x14 from an armed but
+        //   never-dwelled different button while a popup is up).
+        public const int QuickTipDwellMs = 250;          // native ON dwell (0xfa)
+        public OptRow QuickTipHoveredRow;                // native +0x164 arm state
+        public OptRow QuickTipOpenedRow;                 // popup opened by a dwell fire
+        public Func<int> QuickTipClock = () => Environment.TickCount;  // timeGetTime stand-in
+        private int _qtStart;
+        private bool _qtFired;
+
+        public bool QuickTipsEnabled
+        {
+            get { return GlobalSettings.Default.TS1QuickTips; }
+        }
+
+        /// Production hit test: the row whose widget or caption is under the
+        /// mouse (the native buttons arm on hover; the caption shares the
+        /// row's tip triple via the click-popup law).
+        public OptRow QuickTipHitTest(UpdateState state)
+        {
+            foreach (var row in Rows)
+            {
+                if (row.PopupMember == null) continue;
+                if (HoverOverQuickTipSite(row.Widget, state)) return row;
+                if (HoverOverQuickTipSite(row.Label, state)) return row;
+            }
+            return null;
+        }
+
+        private static bool HoverOverQuickTipSite(UIElement e, UpdateState state)
+        {
+            if (e == null || !e.WillDraw()) return false;
+            var p = e.GetMousePosition(state.MouseState);
+            var s = e.Size;
+            return p.X >= 0 && p.Y >= 0 && p.X < s.X && p.Y < s.Y;
+        }
+
+        /// The dwell pump. Production Update calls this with the live hit test
+        /// and clock; the UI-39 gate calls the SAME method with a synthetic
+        /// hover row and clock (disclosed probe seam — no synthetic mouse
+        /// events exist in the runner).
+        public void QuickTipProcess(OptRow hovered, int now)
+        {
+            if (!ReferenceEquals(hovered, QuickTipHoveredRow))
+            {
+                // 0x14 on leaving the armed button: its quick-tip popup closes.
+                if (QuickTipOpenedRow != null && CurrentPopup != null
+                    && ReferenceEquals(CurrentPopup.Row, QuickTipOpenedRow))
+                    ClosePopup();
+                QuickTipOpenedRow = null;
+                QuickTipHoveredRow = hovered;
+                _qtStart = now;
+                _qtFired = false;
+                return;
+            }
+            if (QuickTipHoveredRow == null || _qtFired) return;
+            if (!QuickTipsEnabled) return;   // native OFF: buttons disarmed
+            if (now - _qtStart >= QuickTipDwellMs)
+            {
+                _qtFired = true;             // native clears the arm after firing
+                OpenPopup(QuickTipHoveredRow);   // 0x13: same triple, same window,
+                                                 // same same-button toggle law
+                QuickTipOpenedRow = CurrentPopup != null ? QuickTipHoveredRow : null;
+            }
         }
 
         private void ClearScreenContent()
@@ -523,6 +610,7 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
 
         private void MakeCaptionOpenPopup(UIOriginalText label, OptRow row)
         {
+            row.Label = label;   // UI-39: the caption is a quick-tip hover site
             label.ListenForMouse(new Rectangle(0, 0, (int)label.Size.X, (int)label.Size.Y),
                 (type, state) =>
                 {

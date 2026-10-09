@@ -1,0 +1,23 @@
+00504b60: 93e1fffc  stw      r31, -4(r1)
+00504b64: 7c0802a6  mflr     r0
+00504b68: 80828e04  lwz      r4, -0x71fc(r2)
+00504b6c: 93c1fff8  stw      r30, -8(r1)
+00504b70: 7c7e1b78  mr       r30, r3
+00504b74: 90010008  stw      r0, 8(r1)
+00504b78: 9421ffb0  stwu     r1, -0x50(r1)
+00504b7c: 80640000  lwz      r3, 0(r4)
+00504b80: 48017c21  bl       0x51c7a0   ; .GetDefaultTTWindow__12cTSWinMgrW95Fv
+00504b84: 7c7f1b79  or.      r31, r3, r3
+00504b88: 41820018  beq      0x504ba0
+00504b8c: 389e0070  addi     r4, r30, 0x70
+00504b90: 38a00000  li       r5, 0
+00504b94: 4beb477d  bl       0x3b9310
+00504b98: 7fe3fb78  mr       r3, r31
+00504b9c: 48000008  b        0x504ba4
+00504ba0: 38600000  li       r3, 0
+00504ba4: 80010058  lwz      r0, 0x58(r1)
+00504ba8: 38210050  addi     r1, r1, 0x50
+00504bac: 83e1fffc  lwz      r31, -4(r1)
+00504bb0: 7c0803a6  mtlr     r0
+00504bb4: 83c1fff8  lwz      r30, -8(r1)
+00504bb8: 4e800020  blr      

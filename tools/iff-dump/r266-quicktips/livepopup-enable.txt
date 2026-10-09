@@ -1,0 +1,103 @@
+00278ee0: 93e1fffc  stw      r31, -4(r1)
+00278ee4: 7c0802a6  mflr     r0
+00278ee8: 83e28dd0  lwz      r31, -0x7230(r2)
+00278eec: 93c1fff8  stw      r30, -8(r1)
+00278ef0: 83c2afd0  lwz      r30, -0x5030(r2)
+00278ef4: 93a1fff4  stw      r29, -0xc(r1)
+00278ef8: 7c9d2378  mr       r29, r4
+00278efc: 9381fff0  stw      r28, -0x10(r1)
+00278f00: 7c7c1b78  mr       r28, r3
+00278f04: 90010008  stw      r0, 8(r1)
+00278f08: 9421ffa0  stwu     r1, -0x60(r1)
+00278f0c: 90a3010c  stw      r5, 0x10c(r3)
+00278f10: 880300d8  lbz      r0, 0xd8(r3)
+00278f14: 28000000  cmplwi   r0, 0
+00278f18: 40820144  bne      0x27905c
+00278f1c: 38000001  li       r0, 1
+00278f20: 981c00d8  stb      r0, 0xd8(r28)
+00278f24: 81830000  lwz      r12, 0(r3)
+00278f28: 818c009c  lwz      r12, 0x9c(r12)
+00278f2c: 48329ab5  bl       0x5a29e0
+00278f30: 80410014  lwz      r2, 0x14(r1)
+00278f34: 807c0104  lwz      r3, 0x104(r28)
+00278f38: 28030000  cmplwi   r3, 0
+00278f3c: 4182002c  beq      0x278f68
+00278f40: 80830014  lwz      r4, 0x14(r3)
+00278f44: 28040000  cmplwi   r4, 0
+00278f48: 41820020  beq      0x278f68
+00278f4c: 281d0000  cmplwi   r29, 0
+00278f50: 41820010  beq      0x278f60
+00278f54: 801d0014  lwz      r0, 0x14(r29)
+00278f58: 7c040040  cmplw    r4, r0
+00278f5c: 4182000c  beq      0x278f68
+00278f60: 38800000  li       r4, 0
+00278f64: 480009bd  bl       0x279920   ; .SetPopup__19cWinLivePopupClientFP13cWinLivePopup
+00278f68: 281d0000  cmplwi   r29, 0
+00278f6c: 93bc0104  stw      r29, 0x104(r28)
+00278f70: 41820010  beq      0x278f80
+00278f74: 387d0000  addi     r3, r29, 0
+00278f78: 389c0000  addi     r4, r28, 0
+00278f7c: 480009a5  bl       0x279920   ; .SetPopup__19cWinLivePopupClientFP13cWinLivePopup
+00278f80: 7f83e378  mr       r3, r28
+00278f84: 4bfff6ad  bl       0x278630   ; .RebuildBuffer__13cWinLivePopupFv
+00278f88: 7f83e378  mr       r3, r28
+00278f8c: 819c0000  lwz      r12, 0(r28)
+00278f90: 818c0170  lwz      r12, 0x170(r12)
+00278f94: 48329a4d  bl       0x5a29e0
+00278f98: 80410014  lwz      r2, 0x14(r1)
+00278f9c: 7f83e378  mr       r3, r28
+00278fa0: 4bfff691  bl       0x278630   ; .RebuildBuffer__13cWinLivePopupFv
+00278fa4: 881c0108  lbz      r0, 0x108(r28)
+00278fa8: 28000000  cmplwi   r0, 0
+00278fac: 41820060  beq      0x27900c
+00278fb0: 83bf0000  lwz      r29, 0(r31)
+00278fb4: 387c00dc  addi     r3, r28, 0xdc
+00278fb8: 389d0000  addi     r4, r29, 0
+00278fbc: 4bed5975  bl       0x14e930   ; .GetVal__13RampGeneratorFUl
+00278fc0: c01e0000  lfs      f0, 0(r30)
+00278fc4: 7fa4eb78  mr       r4, r29
+00278fc8: c05e000c  lfs      f2, 0xc(r30)
+00278fcc: 387c00dc  addi     r3, r28, 0xdc
+00278fd0: ec200828  fsubs    f1, f0, f1
+00278fd4: c01e0008  lfs      f0, 8(r30)
+00278fd8: ec02007a  fmadds   f0, f2, f1, f0
+00278fdc: fc00001e  fctiwz   f0, f0
+00278fe0: d8010040  stfd     f0, 0x40(r1)
+00278fe4: 83e10044  lwz      r31, 0x44(r1)
+00278fe8: 4bed5949  bl       0x14e930   ; .GetVal__13RampGeneratorFUl
+00278fec: c05e0000  lfs      f2, 0(r30)
+00278ff0: 38df0000  addi     r6, r31, 0
+00278ff4: 38fd0000  addi     r7, r29, 0
+00278ff8: 387c00dc  addi     r3, r28, 0xdc
+00278ffc: 4bed5895  bl       0x14e890   ; .SetupConstantTimeRamp__13RampGeneratorFffUlUl
+00279000: 38000000  li       r0, 0
+00279004: 981c0108  stb      r0, 0x108(r28)
+00279008: 48000040  b        0x279048
+0027900c: 387c0000  addi     r3, r28, 0
+00279010: 38800001  li       r4, 1
+00279014: 4828a80d  bl       0x503820   ; .SetOverlapsScrollArea__6cTSWinFb
+00279018: 80628874  lwz      r3, -0x778c(r2)
+0027901c: 38a0fffc  li       r5, -4
+00279020: 8082afcc  lwz      r4, -0x5034(r2)
+00279024: 80630000  lwz      r3, 0(r3)
+00279028: 80630010  lwz      r3, 0x10(r3)
+0027902c: 480903b5  bl       0x3093e0
+00279030: c03e0004  lfs      f1, 4(r30)
+00279034: 387c00dc  addi     r3, r28, 0xdc
+00279038: c05e0000  lfs      f2, 0(r30)
+0027903c: 38c000fa  li       r6, 0xfa
+00279040: 80ff0000  lwz      r7, 0(r31)
+00279044: 4bed584d  bl       0x14e890   ; .SetupConstantTimeRamp__13RampGeneratorFffUlUl
+00279048: 7f83e378  mr       r3, r28
+0027904c: 819c0000  lwz      r12, 0(r28)
+00279050: 818c0170  lwz      r12, 0x170(r12)
+00279054: 4832998d  bl       0x5a29e0
+00279058: 80410014  lwz      r2, 0x14(r1)
+0027905c: 80010068  lwz      r0, 0x68(r1)
+00279060: 38210060  addi     r1, r1, 0x60
+00279064: 83e1fffc  lwz      r31, -4(r1)
+00279068: 83c1fff8  lwz      r30, -8(r1)
+0027906c: 7c0803a6  mtlr     r0
+00279070: 83a1fff4  lwz      r29, -0xc(r1)
+00279074: 8381fff0  lwz      r28, -0x10(r1)
+00279078: 4e800020  blr      
