@@ -208,8 +208,8 @@ namespace Simitone.Client
                         }
                         info += " dedup(sameTrack=" + sameTrackSame + ",retrigger=" + retriggerSame + ",diffTrack=" + diffTrackDiff + ")";
                         // cleanup: do not leak probe threads into later checks
-                        if (tAsh != null) (tAsh as FSO.HIT.HITThread)?.Kill();
-                        if (tHard != null) (tHard as FSO.HIT.HITThread)?.Kill();
+                        if (tAsh != null) tAsh.Dead = true;
+                        if (tHard != null) tHard.Dead = true;
                     }
                     catch (Exception ed)
                     {
