@@ -558,7 +558,10 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
         private readonly Dictionary<uint, Texture2D> JobPopupObjectThumbs =
             new Dictionary<uint, Texture2D>();
 
-        private static readonly int[] FameFriendsNeeded =
+        // EXP-16b: internal for the ssfame probe's table-consistency pin
+        // (fame.iff STR# 4 == this display copy; native cFameTrack loads the
+        // same table at this+0x14 and indexes it by the person's fame level).
+        internal static readonly int[] FameFriendsNeeded =
             { 0, 0, 0, 0, 2, 4, 7, 11, 14, 18, 0 };
         private static readonly int[][] FameSkillsNeeded =
         {
