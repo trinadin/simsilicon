@@ -99,8 +99,11 @@ namespace Simitone.Client
                 int cid = (d[off + 8] << 8) | d[off + 9];
                 if (cid == wanted)
                 {
-                    label = System.Text.Encoding.GetEncoding("macintosh")
-                        .GetString(d, off + 12, Array.IndexOf(d, (byte)0, off + 12, 64) - (off + 12));
+                    // runner convention: ASCII decode (ReadCStringAt) — the
+                    // pinned tables' labels and English entries are ASCII
+                    var lblb = new byte[64];
+                    Array.Copy(d, off + 12, lblb, 0, 64);
+                    label = System.Text.Encoding.ASCII.GetString(lblb).Split('\0')[0];
                     var raw = new byte[sz];
                     Array.Copy(d, off, raw, 0, sz);
                     english = ParseEnglish(raw);
@@ -119,13 +122,12 @@ namespace Simitone.Client
             if (count > 5000) count = 5000;
             int p = 76 + 4;
             int shown = 0;
-            var enc = System.Text.Encoding.GetEncoding("macintosh");
             while (shown < count && p + 1 < raw.Length)
             {
                 int lang = raw[p]; p++;
                 int e = Array.IndexOf(raw, (byte)0, p);
                 if (e < 0) break;
-                if (lang == 1) result.Add(enc.GetString(raw, p, e - p));
+                if (lang == 1) result.Add(System.Text.Encoding.ASCII.GetString(raw, p, e - p));
                 p = e + 1;
                 e = Array.IndexOf(raw, (byte)0, p);
                 if (e < 0) break;
@@ -297,7 +299,8 @@ namespace Simitone.Client
                 if (panel.CurrentPopup != null) { ok = false; info += "offDisarm;"; }
                 // the row's own production Toggle drives the gate (the native
                 // checkbox cmd): off -> on
-                if (qtRow.IsOn != null && !qtRow.IsOn()) { ok = false; info += "offState;"; }
+                // the row's live IsOn reflects the gate (false while off)
+                if (qtRow.IsOn == null || qtRow.IsOn()) { ok = false; info += "offState;"; }
                 if (qtRow.Toggle != null)
                 {
                     qtRow.Toggle();
