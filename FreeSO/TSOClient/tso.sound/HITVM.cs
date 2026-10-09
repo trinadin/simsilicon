@@ -29,6 +29,16 @@ namespace FSO.HIT
         //non static stuff
 
         private Dictionary<string, HITSound> ActiveEvents; //events that are active are reused for all objects calling that event.
+        // AUD-22: TS1 native channel identity — the dispatch unit is ONE
+        // sound channel per TRACK, not per event name (cBoxX::Event's
+        // kSndobPlay case 0x2DFA1C: the pre-created per-track sound object
+        // absorbs a same-track replay into a vol/pan refresh while its
+        // channel is active; decode receipt evidence/AUD-20/
+        // footstep-residuals-decode.md §(d) + evidence/AUD-22/). Keyed on
+        // the resolved Track object (reference identity = the port's
+        // GetTrack(ResGroup, id) lookup unit). Populated only on the TS1
+        // generic-thread arms; the TV/music-mode arms keep name-keying.
+        private Dictionary<FSO.Files.HIT.Track, HITSound> ActiveTracks;
         // AUD-12: widened for the capture-rail gate's live-source enumeration
         // (read-only adoption of an active MUSIC-group thread).
         public List<HITSound> Sounds;
@@ -58,6 +68,7 @@ namespace FSO.HIT
             Globals = new int[36];
             Sounds = new List<HITSound>();
             ActiveEvents = new Dictionary<string, HITSound>();
+            ActiveTracks = new Dictionary<FSO.Files.HIT.Track, HITSound>();
             FSCPlayers = new List<FSCPlayer>();
             AmbLoops = new List<SoundEffectInstance>();
             DuckMap = new Dictionary<HITSound, int>();
@@ -333,12 +344,18 @@ namespace FSO.HIT
 
                 uint TrackID = 0;
                 uint SubroutinePointer = 0;
+                // AUD-22: the resolved Track object for the TS1 track-keyed
+                // channel dedup below (reference identity — the same object
+                // every event name mapping to this ResGroup+track resolves
+                // to).
+                FSO.Files.HIT.Track resolvedTrack = null;
 
                 if (content.TS1)
                 {
                     TrackID = evtent.TrackID;
                     var track = content.Audio.GetTrack(TrackID, 0, evtent.ResGroup);
                     if (track != null && track.SubroutineID != 0) SubroutinePointer = track.SubroutineID;
+                    resolvedTrack = track;
                 }
                 else
                 {
@@ -355,6 +372,31 @@ namespace FSO.HIT
                         var entPoints = evtent.ResGroup.hit.EntryPointByTrackID;
                         TrackID = evtent.TrackID;
                         if (entPoints != null && entPoints.ContainsKey(evtent.TrackID)) SubroutinePointer = entPoints[evtent.TrackID];
+                    }
+                }
+
+                // AUD-22: native track-keyed channel semantics (TS1). While a
+                // thread for this TRACK is alive, any event name resolving to
+                // that track is absorbed into it (the caller AddOwner's and
+                // the entity path immediately TickSounds — a vol/pan refresh,
+                // exactly the native kSndobPlay state==2 arm) instead of
+                // layering a second voice. The 49 corpus name-groups that
+                // share a track (e.g. footstep_ash + footstep_trash, both
+                // track 1954) are the audible class. The TV/music-mode arms
+                // below keep name-keyed dedup (bounded change).
+                if (content.TS1 && resolvedTrack != null
+                    && evtent.EventType != HITEvents.kTurnOnTV
+                    && evtent.EventType != HITEvents.kSetMusicMode)
+                {
+                    HITSound trackLive;
+                    if (ActiveTracks.TryGetValue(resolvedTrack, out trackLive))
+                    {
+                        if (trackLive.Dead) ActiveTracks.Remove(resolvedTrack); //last thread died: a replay fires a fresh voice
+                        else
+                        {
+                            if (HITTrace.Enabled) HITTrace.Event(evt, HITTrace.RES_ALREADY_ALIVE, TrackID, trackLive.Name);
+                            return trackLive; //one channel per track — take it
+                        }
                     }
                 }
 
@@ -425,6 +467,7 @@ namespace FSO.HIT
                     thread.SequenceHitlist = evtent.SequenceHitlist;
                     Sounds.Add(thread);
                     ActiveEvents[evt] = thread;
+                    if (content.TS1 && resolvedTrack != null) ActiveTracks[resolvedTrack] = thread; // AUD-22 track-keyed channel
                     if (InterruptBlocker != null)
                     {
                         InterruptBlocker.Interrupt(thread);
@@ -448,6 +491,7 @@ namespace FSO.HIT
                     if (TrackID != 0) thread.SetTrack(TrackID, evtent.TrackID);
                     Sounds.Add(thread);
                     ActiveEvents[evt] = thread;
+                    if (content.TS1 && resolvedTrack != null) ActiveTracks[resolvedTrack] = thread; // AUD-22 track-keyed channel
                     if (InterruptBlocker != null)
                     {
                         InterruptBlocker.Interrupt(thread);
@@ -462,6 +506,7 @@ namespace FSO.HIT
                     var thread = new HITThread(TrackID, this, evtent.ResGroup);
                     Sounds.Add(thread);
                     ActiveEvents[evt] = thread;
+                    if (content.TS1 && resolvedTrack != null) ActiveTracks[resolvedTrack] = thread; // AUD-22 track-keyed channel
                     if (InterruptBlocker != null)
                     {
                         InterruptBlocker.Interrupt(thread);
