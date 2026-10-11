@@ -32,8 +32,10 @@ namespace Simitone.Client
     ///     subpanel display laws re-pinned live at a nontrivial level —
     ///     UpdateFameLabel @0x10455de0 (STR[level+1]), UpdateFamePopup
     ///     @0x10455cf0 (pair [13+2L]/[14+2L]), SetFriendsNeeded @0x10456000
-    ///     (format [12]); the panel label/popup equality is index law, the
-    ///     friends threshold TOC constants stay disclosed.
+    ///     (format [12]); the panel label/popup equality is index law. The
+    ///     friends-threshold TOC constants were recovered by EXP-16b
+    ///     (K = 0.5f @ flat 0x59a0d8 = [TOC-23640]; see part B2) and the
+    ///     disclosure is retired — pinned here at the exact boundary.
     ///  C. FAME OBJECTS census (studio-town-objects.md): every interactive
     ///     Studio Town object file (EP6/ExpansionPack6.far) mounts with a
     ///     non-empty TTAB and every interaction's action AND test tree
@@ -230,6 +232,157 @@ namespace Simitone.Client
             }
             catch (Exception e) { fameDiag = " EXC " + e.GetType().Name + " " + e.Message; }
             emit("ssfame-screens", fameLaw, "screens=" + fameLaw + fameDiag);
+
+            // ---------- B2. friends-needed gate constants (EXP-16b) ----------
+            // Native cFameTrack::IsFriendsNeededShown @0x1004f550 (and the
+            // byte-identical tail in PromoteIfNeeded @0x10058500) computes
+            //   PersonFinder::GetFamousFriendCount(idx) * 0.5f >= (double)needed
+            // K = [TOC-23640] -> flat 0x59a0d8, bits 0x3F000000 = 0.5f exactly
+            // (the second TOC load, [TOC-23644] -> flat 0x59a0e0 =
+            // 0x4330000080000000, is the compiler int32->double magic, not a
+            // law constant); needed = the level table (fame.iff STR# 4). Pin:
+            // the STR# 4 values, the panel's display table == STR# 4, and the
+            // live friends label on BOTH sides of the K boundary by
+            // synthesizing one famous friend (8*0.5 >= 4 plain "4.0" vs
+            // 7*0.5 < 4 "(Need 4)") through the real UpdateFame path.
+            bool gateLaw = false;
+            string gateDiag = "";
+            try
+            {
+                var game = GameFacade.Screens.CurrentUIScreen as TS1GameScreen;
+                var sel = game?.SelectedAvatar;
+                var fameIff2 = Content.Get().TS1Global.Get("fame.iff") as IffFile;
+                var str4 = fameIff2?.Get<STR>(4);
+                var vals = new List<short>();
+                if (str4 != null)
+                    for (ushort i = 0; i < 11; i++)
+                        vals.Add(short.Parse((str4.GetStringEntry(i)?.Value ?? "x").Trim()));
+                var tableCsv = string.Join(",", vals);
+                bool tableLaw = tableCsv == "0,0,0,0,2,4,7,11,14,18,0";
+                bool panelTableLaw = tableCsv == string.Join(",", UIJobSubpanel.FameFriendsNeeded);
+                if (sel != null && tableLaw)
+                {
+                    // arm level 5 (needed = 4) with the same PD levers as B
+                    short s0 = sel.GetPersonData(FSO.SimAntics.Model.VMPersonDataVariable.TS1FameScore);
+                    short l0 = sel.GetPersonData(FSO.SimAntics.Model.VMPersonDataVariable.TS1FameStarPower);
+                    short p0 = sel.GetPersonData(FSO.SimAntics.Model.VMPersonDataVariable.TS1FameStarHighWatermark);
+                    short jt0 = sel.GetPersonData(FSO.SimAntics.Model.VMPersonDataVariable.JobType);
+                    short age0 = sel.GetPersonData(FSO.SimAntics.Model.VMPersonDataVariable.PersonsAge);
+                    var provider = Content.Get()?.Neighborhood;
+                    var selected = provider?.GetNeighborByID(
+                        sel.GetPersonData(FSO.SimAntics.Model.VMPersonDataVariable.NeighborId));
+                    // snapshot + zero every neighbor's fame star power so the
+                    // synthesized friend is the ONLY contributor (restored in
+                    // finally; short records are already invisible to the law)
+                    const int fameIdx = (int)FSO.SimAntics.Model.VMPersonDataVariable.TS1FameStarPower;
+                    const int familyIdx = (int)FSO.SimAntics.Model.VMPersonDataVariable.TS1FamilyNumber;
+                    var savedStars = new Dictionary<Neighbour, short>();
+                    Neighbour other = null;
+                    short[] otherSavedData = null;
+                    List<short> savedFwd = null, savedRev = null;
+                    bool hadFwd = false, hadRev = false;
+                    try
+                    {
+                        if (provider?.Neighbors?.Entries != null)
+                            foreach (var e2 in provider.Neighbors.Entries)
+                            {
+                                if (e2?.PersonData == null || e2.PersonData.Length <= fameIdx) continue;
+                                savedStars[e2] = e2.PersonData[fameIdx];
+                                e2.PersonData[fameIdx] = 0;
+                            }
+                        var selectedFamily = selected != null && selected.PersonData != null
+                            && selected.PersonData.Length > familyIdx ? selected.PersonData[familyIdx] : (short)0;
+                        if (selected != null && provider.Neighbors?.Entries != null)
+                            foreach (var e2 in provider.Neighbors.Entries)
+                            {
+                                if (e2 == null || e2 == selected || e2.PersonData == null
+                                    || e2.PersonData.Length <= familyIdx) continue;
+                                var fam = e2.PersonData[familyIdx];
+                                if (fam == 0 || fam == selectedFamily) continue;
+                                other = e2;
+                                break;
+                            }
+                        string got8 = null, got7 = null, expectBelow7 = null;
+                        if (other != null && selected != null
+                            && selected.Relationships != null && other.Relationships != null)
+                        {
+                            // extend a COPY so the synthesized star power + the
+                            // (>81-short) record survive the panel's filter
+                            otherSavedData = other.PersonData;
+                            var ext = new short[Math.Max(other.PersonData.Length, fameIdx + 1)];
+                            other.PersonData.CopyTo(ext, 0);
+                            other.PersonData = ext;
+                            // mutual DAILY slot 0 at 100 both directions
+                            hadFwd = selected.Relationships.TryGetValue(other.NeighbourID, out savedFwd);
+                            hadRev = other.Relationships.TryGetValue(selected.NeighbourID, out savedRev);
+                            selected.Relationships[other.NeighbourID] = new List<short> { 100 };
+                            other.Relationships[selected.NeighbourID] = new List<short> { 100 };
+
+                            sel.SetPersonData(FSO.SimAntics.Model.VMPersonDataVariable.PersonsAge, 27);
+                            sel.SetPersonData(FSO.SimAntics.Model.VMPersonDataVariable.TS1FameScore, 100);
+                            sel.SetPersonData(FSO.SimAntics.Model.VMPersonDataVariable.TS1FameStarPower, 5);
+                            sel.SetPersonData(FSO.SimAntics.Model.VMPersonDataVariable.TS1FameStarHighWatermark, 5);
+                            sel.SetPersonData(FSO.SimAntics.Model.VMPersonDataVariable.JobType, 0);
+                            var fs2 = fameIff2.Get<STR>(1);
+                            Func<string> label = () =>
+                            {
+                                var panel = new UIJobSubpanel(game);
+                                var st = new UpdateState();
+                                panel.Update(st);
+                                panel.Update(st);
+                                return panel.FameFriendsLabel?.Text ?? "null";
+                            };
+                            // 8 * 0.5 == 4 >= 4 -> plain half-count text
+                            ext[fameIdx] = 8;
+                            got8 = label();
+                            // 7 * 0.5 == 3.5 < 4 -> STR[12] "%s (Need %d)"
+                            ext[fameIdx] = 7;
+                            got7 = label();
+                            expectBelow7 = fs2.GetString(12)
+                                .Replace("%s", "3.5").Replace("%d", "4");
+                            gateLaw = got8 == "4.0" && got7 == expectBelow7;
+                            gateDiag = " table='" + tableCsv + "' panelTable=" + panelTableLaw
+                                + " k8='" + got8 + "' k7='" + got7 + "' expect7='" + expectBelow7 + "'";
+                        }
+                        else
+                        {
+                            gateDiag = " no-usable-other-neighbor selected=" + (selected != null)
+                                + " table='" + tableCsv + "'";
+                        }
+                        gateLaw = gateLaw && panelTableLaw;
+                    }
+                    finally
+                    {
+                        if (other != null)
+                        {
+                            if (selected != null)
+                            {
+                                if (hadFwd && savedFwd != null) selected.Relationships[other.NeighbourID] = savedFwd;
+                                else if (!hadFwd) selected.Relationships.Remove(other.NeighbourID);
+                            }
+                            if (hadRev && savedRev != null) other.Relationships[selected.NeighbourID] = savedRev;
+                            else if (!hadRev) other.Relationships.Remove(selected.NeighbourID);
+                            if (otherSavedData != null) other.PersonData = otherSavedData;
+                        }
+                        if (provider?.Neighbors?.Entries != null)
+                            foreach (var kv in savedStars)
+                                if (kv.Key.PersonData != null && kv.Key.PersonData.Length > fameIdx)
+                                    kv.Key.PersonData[fameIdx] = kv.Value;
+                        sel.SetPersonData(FSO.SimAntics.Model.VMPersonDataVariable.TS1FameScore, s0);
+                        sel.SetPersonData(FSO.SimAntics.Model.VMPersonDataVariable.TS1FameStarPower, l0);
+                        sel.SetPersonData(FSO.SimAntics.Model.VMPersonDataVariable.TS1FameStarHighWatermark, p0);
+                        sel.SetPersonData(FSO.SimAntics.Model.VMPersonDataVariable.JobType, jt0);
+                        sel.SetPersonData(FSO.SimAntics.Model.VMPersonDataVariable.PersonsAge, age0);
+                    }
+                    if (gateDiag == "") gateDiag = " table='" + tableCsv + "' panelTable=" + panelTableLaw;
+                }
+                else
+                {
+                    gateDiag = sel == null ? " no-selected-avatar" : " str4='" + tableCsv + "'";
+                }
+            }
+            catch (Exception e) { gateDiag = " EXC " + e.GetType().Name + " " + e.Message; }
+            emit("ssfame-friends-gate", gateLaw, "gate=" + gateLaw + gateDiag);
 
             // ---------- C. Studio Town objects census ----------
             int files = 0, mounted = 0, interactions = 0, resolved = 0, unresolved = 0;
