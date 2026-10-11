@@ -146,12 +146,18 @@ namespace Simitone.Client
                 };
 
                 // C1 the pinned pair: footstep_ash + footstep_trash -> ONE
-                // track (native id 1954) -> ONE Track object.
+                // track (native id 1954) -> ONE Track object. The native
+                // anchor is the EVENT registration's TrackID (footstep_ash=
+                // kSndobPlay,1954 in SimsGeneratedHitSource.hot); the Track
+                // object's .TrackID field is only populated by the DBPF TRK
+                // ctor, NOT the .hot parse path (it stays 0 there), so pin
+                // the event registration id, not the object field.
                 var ash = trkOf("footstep_ash");
                 var trash = trkOf("footstep_trash");
                 var hard = trkOf("footstep_hard");
+                var ashReg = regOf("footstep_ash");
                 bool pairSame = ash != null && ReferenceEquals(ash, trash);
-                bool trackId1954 = ash != null && ash.TrackID == 1954;
+                bool trackId1954 = ashReg != null && ashReg.TrackID == 1954;
                 bool controlDiff = ash != null && hard != null && !ReferenceEquals(ash, hard);
                 if (!(pairSame && trackId1954 && controlDiff))
                 {
