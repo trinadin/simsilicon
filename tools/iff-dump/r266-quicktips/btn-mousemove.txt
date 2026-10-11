@@ -1,0 +1,68 @@
+0050b940: 93e1fffc  stw      r31, -4(r1)
+0050b944: 7c0802a6  mflr     r0
+0050b948: 80e28e04  lwz      r7, -0x71fc(r2)
+0050b94c: 3be60000  addi     r31, r6, 0
+0050b950: 93c1fff8  stw      r30, -8(r1)
+0050b954: 3bc50000  addi     r30, r5, 0
+0050b958: 93a1fff4  stw      r29, -0xc(r1)
+0050b95c: 3ba40000  addi     r29, r4, 0
+0050b960: 9381fff0  stw      r28, -0x10(r1)
+0050b964: 3b830000  addi     r28, r3, 0
+0050b968: 90010008  stw      r0, 8(r1)
+0050b96c: 9421ffb0  stwu     r1, -0x50(r1)
+0050b970: 80670000  lwz      r3, 0(r7)
+0050b974: 48013dfd  bl       0x51f770   ; .TSGetCapture__12cTSWinMgrW95Fv
+0050b978: 7c03e040  cmplw    r3, r28
+0050b97c: 408200a0  bne      0x50ba1c
+0050b980: 2c1d0000  cmpwi    r29, 0
+0050b984: 38800000  li       r4, 0
+0050b988: 41800038  blt      0x50b9c0
+0050b98c: 807c0074  lwz      r3, 0x74(r28)
+0050b990: 801c007c  lwz      r0, 0x7c(r28)
+0050b994: 7c030050  subf     r0, r3, r0
+0050b998: 7c1d0000  cmpw     r29, r0
+0050b99c: 40800024  bge      0x50b9c0
+0050b9a0: 2c1e0000  cmpwi    r30, 0
+0050b9a4: 4180001c  blt      0x50b9c0
+0050b9a8: 807c0078  lwz      r3, 0x78(r28)
+0050b9ac: 801c0080  lwz      r0, 0x80(r28)
+0050b9b0: 7c030050  subf     r0, r3, r0
+0050b9b4: 7c1e0000  cmpw     r30, r0
+0050b9b8: 40800008  bge      0x50b9c0
+0050b9bc: 38800001  li       r4, 1
+0050b9c0: 881c0161  lbz      r0, 0x161(r28)
+0050b9c4: 5483063e  clrlwi   r3, r4, 0x18
+0050b9c8: 7c030040  cmplw    r3, r0
+0050b9cc: 41820050  beq      0x50ba1c
+0050b9d0: 28030000  cmplwi   r3, 0
+0050b9d4: 41820028  beq      0x50b9fc
+0050b9d8: 7f83e378  mr       r3, r28
+0050b9dc: 819c0000  lwz      r12, 0(r28)
+0050b9e0: 389d0000  addi     r4, r29, 0
+0050b9e4: 38be0000  addi     r5, r30, 0
+0050b9e8: 818c0110  lwz      r12, 0x110(r12)
+0050b9ec: 7f86e378  mr       r6, r28
+0050b9f0: 48096ff1  bl       0x5a29e0
+0050b9f4: 80410014  lwz      r2, 0x14(r1)
+0050b9f8: 48000024  b        0x50ba1c
+0050b9fc: 7f83e378  mr       r3, r28
+0050ba00: 819c0000  lwz      r12, 0(r28)
+0050ba04: 389d0000  addi     r4, r29, 0
+0050ba08: 38be0000  addi     r5, r30, 0
+0050ba0c: 818c0114  lwz      r12, 0x114(r12)
+0050ba10: 7f86e378  mr       r6, r28
+0050ba14: 48096fcd  bl       0x5a29e0
+0050ba18: 80410014  lwz      r2, 0x14(r1)
+0050ba1c: 387c0000  addi     r3, r28, 0
+0050ba20: 389d0000  addi     r4, r29, 0
+0050ba24: 38be0000  addi     r5, r30, 0
+0050ba28: 38df0000  addi     r6, r31, 0
+0050ba2c: 4bff9555  bl       0x504f80   ; .TSOnMouseMove__6cTSWinFllUl
+0050ba30: 80010058  lwz      r0, 0x58(r1)
+0050ba34: 38210050  addi     r1, r1, 0x50
+0050ba38: 83e1fffc  lwz      r31, -4(r1)
+0050ba3c: 83c1fff8  lwz      r30, -8(r1)
+0050ba40: 7c0803a6  mtlr     r0
+0050ba44: 83a1fff4  lwz      r29, -0xc(r1)
+0050ba48: 8381fff0  lwz      r28, -0x10(r1)
+0050ba4c: 4e800020  blr      

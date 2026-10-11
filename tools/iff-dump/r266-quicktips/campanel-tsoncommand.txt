@@ -1,0 +1,247 @@
+00266310: bf41ffe8  stmw     r26, -0x18(r1)
+00266314: 7c0802a6  mflr     r0
+00266318: 2c040013  cmpwi    r4, 0x13
+0026631c: 3be30000  addi     r31, r3, 0
+00266320: 90010008  stw      r0, 8(r1)
+00266324: 9421ffa0  stwu     r1, -0x60(r1)
+00266328: 41820344  beq      0x26666c
+0026632c: 4080039c  bge      0x2666c8
+00266330: 2c040001  cmpwi    r4, 1
+00266334: 41820008  beq      0x26633c
+00266338: 48000390  b        0x2666c8
+0026633c: 389f00d4  addi     r4, r31, 0xd4
+00266340: 387f00f4  addi     r3, r31, 0xf4
+00266344: 48000008  b        0x26634c
+00266348: 38840004  addi     r4, r4, 4
+0026634c: 7c041840  cmplw    r4, r3
+00266350: 41820010  beq      0x266360
+00266354: 80040000  lwz      r0, 0(r4)
+00266358: 7c002840  cmplw    r0, r5
+0026635c: 4082ffec  bne      0x266348
+00266360: 381f00d4  addi     r0, r31, 0xd4
+00266364: 7c002050  subf     r0, r0, r4
+00266368: 7c001670  srawi    r0, r0, 2
+0026636c: 7f400195  addze.   r26, r0
+00266370: 418002f4  blt      0x266664
+00266374: 2c1a0008  cmpwi    r26, 8
+00266378: 408002ec  bge      0x266664
+0026637c: 807f00f4  lwz      r3, 0xf4(r31)
+00266380: 880300d8  lbz      r0, 0xd8(r3)
+00266384: 28000000  cmplwi   r0, 0
+00266388: 41820010  beq      0x266398
+0026638c: 387f0000  addi     r3, r31, 0
+00266390: 389a0000  addi     r4, r26, 0
+00266394: 4bfffdfd  bl       0x266190   ; .SetupPopup__12cWinCamPanelFi
+00266398: 281a0007  cmplwi   r26, 7
+0026639c: 41810338  bgt      0x2666d4
+002663a0: 8062aee8  lwz      r3, -0x5118(r2)
+002663a4: 5740103a  slwi     r0, r26, 2
+002663a8: 7c63002e  lwzx     r3, r3, r0
+002663ac: 7c6903a6  mtctr    r3
+002663b0: 4e800420  bctr     
+002663b4: 807f00d8  lwz      r3, 0xd8(r31)
+002663b8: 28030000  cmplwi   r3, 0
+002663bc: 4182000c  beq      0x2663c8
+002663c0: 38800000  li       r4, 0
+002663c4: 482a4f8d  bl       0x50b350   ; .SetState__9cTSWinBtnFi
+002663c8: 807f00dc  lwz      r3, 0xdc(r31)
+002663cc: 28030000  cmplwi   r3, 0
+002663d0: 4182000c  beq      0x2663dc
+002663d4: 38800000  li       r4, 0
+002663d8: 482a4f79  bl       0x50b350   ; .SetState__9cTSWinBtnFi
+002663dc: 807f00cc  lwz      r3, 0xcc(r31)
+002663e0: 38800000  li       r4, 0
+002663e4: 4bfa697d  bl       0x20cd60   ; .CamSetSize__7CPStateFQ27CPState10CameraSize
+002663e8: 480002ec  b        0x2666d4
+002663ec: 807f00d4  lwz      r3, 0xd4(r31)
+002663f0: 28030000  cmplwi   r3, 0
+002663f4: 4182000c  beq      0x266400
+002663f8: 38800000  li       r4, 0
+002663fc: 482a4f55  bl       0x50b350   ; .SetState__9cTSWinBtnFi
+00266400: 807f00dc  lwz      r3, 0xdc(r31)
+00266404: 28030000  cmplwi   r3, 0
+00266408: 4182000c  beq      0x266414
+0026640c: 38800000  li       r4, 0
+00266410: 482a4f41  bl       0x50b350   ; .SetState__9cTSWinBtnFi
+00266414: 807f00cc  lwz      r3, 0xcc(r31)
+00266418: 38800001  li       r4, 1
+0026641c: 4bfa6945  bl       0x20cd60   ; .CamSetSize__7CPStateFQ27CPState10CameraSize
+00266420: 480002b4  b        0x2666d4
+00266424: 807f00d4  lwz      r3, 0xd4(r31)
+00266428: 28030000  cmplwi   r3, 0
+0026642c: 4182000c  beq      0x266438
+00266430: 38800000  li       r4, 0
+00266434: 482a4f1d  bl       0x50b350   ; .SetState__9cTSWinBtnFi
+00266438: 807f00d8  lwz      r3, 0xd8(r31)
+0026643c: 28030000  cmplwi   r3, 0
+00266440: 4182000c  beq      0x26644c
+00266444: 38800000  li       r4, 0
+00266448: 482a4f09  bl       0x50b350   ; .SetState__9cTSWinBtnFi
+0026644c: 807f00cc  lwz      r3, 0xcc(r31)
+00266450: 38800002  li       r4, 2
+00266454: 4bfa690d  bl       0x20cd60   ; .CamSetSize__7CPStateFQ27CPState10CameraSize
+00266458: 4800027c  b        0x2666d4
+0026645c: 8802f5f0  lbz      r0, -0xa10(r2)
+00266460: 28000000  cmplwi   r0, 0
+00266464: 40820270  bne      0x2666d4
+00266468: 38000001  li       r0, 1
+0026646c: 9802f5f0  stb      r0, -0xa10(r2)
+00266470: 3860010c  li       r3, 0x10c
+00266474: 4832afcd  bl       0x591440
+00266478: 7c7e1b79  or.      r30, r3, r3
+0026647c: 41820008  beq      0x266484
+00266480: 48039ad1  bl       0x29ff50   ; .__ct__13cWinScrapbookFv
+00266484: 281e0000  cmplwi   r30, 0
+00266488: 41820128  beq      0x2665b0
+0026648c: 7fc3f378  mr       r3, r30
+00266490: 819e0000  lwz      r12, 0(r30)
+00266494: 818c0014  lwz      r12, 0x14(r12)
+00266498: 4833c549  bl       0x5a29e0
+0026649c: 80410014  lwz      r2, 0x14(r1)
+002664a0: 5460063f  clrlwi.  r0, r3, 0x18
+002664a4: 4182010c  beq      0x2665b0
+002664a8: 480002b9  bl       0x266760   ; .FrameWork__12cTSFrameWorkFv
+002664ac: 81830000  lwz      r12, 0(r3)
+002664b0: 818c0024  lwz      r12, 0x24(r12)
+002664b4: 4833c52d  bl       0x5a29e0
+002664b8: 80410014  lwz      r2, 0x14(r1)
+002664bc: 81830000  lwz      r12, 0(r3)
+002664c0: 818c0010  lwz      r12, 0x10(r12)
+002664c4: 4833c51d  bl       0x5a29e0
+002664c8: 80410014  lwz      r2, 0x14(r1)
+002664cc: 83430074  lwz      r26, 0x74(r3)
+002664d0: 83630078  lwz      r27, 0x78(r3)
+002664d4: 7c9a00d0  neg      r4, r26
+002664d8: 8383007c  lwz      r28, 0x7c(r3)
+002664dc: 83a30080  lwz      r29, 0x80(r3)
+002664e0: 7c1b00d0  neg      r0, r27
+002664e4: 7f5a2214  add      r26, r26, r4
+002664e8: 7f9c2214  add      r28, r28, r4
+002664ec: 7f7b0214  add      r27, r27, r0
+002664f0: 7fbd0214  add      r29, r29, r0
+002664f4: 387e0074  addi     r3, r30, 0x74
+002664f8: 48000229  bl       0x266720   ; .Height__7cTSRectCFv
+002664fc: 7c1be850  subf     r0, r27, r29
+00266500: 7c830050  subf     r4, r3, r0
+00266504: 387e0074  addi     r3, r30, 0x74
+00266508: 54800ffe  srwi     r0, r4, 0x1f
+0026650c: 7c002214  add      r0, r0, r4
+00266510: 7c1b0e70  srawi    r27, r0, 1
+00266514: 4bffb76d  bl       0x261c80   ; .Width__7cTSRectCFv
+00266518: 7c1ae050  subf     r0, r26, r28
+0026651c: 7c630050  subf     r3, r3, r0
+00266520: 54600ffe  srwi     r0, r3, 0x1f
+00266524: 7c001a14  add      r0, r0, r3
+00266528: 387e0000  addi     r3, r30, 0
+0026652c: 7c1a0e70  srawi    r26, r0, 1
+00266530: 4bfb4081  bl       0x21a5b0   ; .GetH__6cTSWinCFv
+00266534: 3ba30000  addi     r29, r3, 0
+00266538: 387e0000  addi     r3, r30, 0
+0026653c: 4bfb40b5  bl       0x21a5f0   ; .GetW__6cTSWinCFv
+00266540: 38030000  addi     r0, r3, 0
+00266544: 7cfbea14  add      r7, r27, r29
+00266548: 387e0000  addi     r3, r30, 0
+0026654c: 7cda0214  add      r6, r26, r0
+00266550: 819e0000  lwz      r12, 0(r30)
+00266554: 389a0000  addi     r4, r26, 0
+00266558: 38bb0000  addi     r5, r27, 0
+0026655c: 818c0068  lwz      r12, 0x68(r12)
+00266560: 4833c481  bl       0x5a29e0
+00266564: 80410014  lwz      r2, 0x14(r1)
+00266568: 93fe0050  stw      r31, 0x50(r30)
+0026656c: 80628ca4  lwz      r3, -0x735c(r2)
+00266570: 80630000  lwz      r3, 0(r3)
+00266574: 81830000  lwz      r12, 0(r3)
+00266578: 818c0020  lwz      r12, 0x20(r12)
+0026657c: 4833c465  bl       0x5a29e0
+00266580: 80410014  lwz      r2, 0x14(r1)
+00266584: 38be0000  addi     r5, r30, 0
+00266588: 38800000  li       r4, 0
+0026658c: 482b64d5  bl       0x51ca60   ; .DoModalWin__12cTSWinMgrW95FP6cTSWinP6cTSWin
+00266590: 80628874  lwz      r3, -0x778c(r2)
+00266594: 7fc4f378  mr       r4, r30
+00266598: 80630000  lwz      r3, 0(r3)
+0026659c: 80630050  lwz      r3, 0x50(r3)
+002665a0: 482b7a01  bl       0x51dfa0   ; .DestroyWindow__12cTSWinMgrW95FP6cTSWin
+002665a4: 80628e04  lwz      r3, -0x71fc(r2)
+002665a8: 80630000  lwz      r3, 0(r3)
+002665ac: 482b5165  bl       0x51b710   ; .FlushInputEvents__12cTSWinMgrW95Fv
+002665b0: 38000000  li       r0, 0
+002665b4: 9802f5f0  stb      r0, -0xa10(r2)
+002665b8: 4800011c  b        0x2666d4
+002665bc: 807f00ec  lwz      r3, 0xec(r31)
+002665c0: 28030000  cmplwi   r3, 0
+002665c4: 4182000c  beq      0x2665d0
+002665c8: 38800000  li       r4, 0
+002665cc: 482a4d85  bl       0x50b350   ; .SetState__9cTSWinBtnFi
+002665d0: 807f00f0  lwz      r3, 0xf0(r31)
+002665d4: 28030000  cmplwi   r3, 0
+002665d8: 4182000c  beq      0x2665e4
+002665dc: 38800000  li       r4, 0
+002665e0: 482a4d71  bl       0x50b350   ; .SetState__9cTSWinBtnFi
+002665e4: 807f00cc  lwz      r3, 0xcc(r31)
+002665e8: 38800000  li       r4, 0
+002665ec: 4bfa65a5  bl       0x20cb90   ; .CamSetQuality__7CPStateFQ27CPState13CameraQuality
+002665f0: 480000e4  b        0x2666d4
+002665f4: 807f00e8  lwz      r3, 0xe8(r31)
+002665f8: 28030000  cmplwi   r3, 0
+002665fc: 4182000c  beq      0x266608
+00266600: 38800000  li       r4, 0
+00266604: 482a4d4d  bl       0x50b350   ; .SetState__9cTSWinBtnFi
+00266608: 807f00f0  lwz      r3, 0xf0(r31)
+0026660c: 28030000  cmplwi   r3, 0
+00266610: 4182000c  beq      0x26661c
+00266614: 38800000  li       r4, 0
+00266618: 482a4d39  bl       0x50b350   ; .SetState__9cTSWinBtnFi
+0026661c: 807f00cc  lwz      r3, 0xcc(r31)
+00266620: 38800001  li       r4, 1
+00266624: 4bfa656d  bl       0x20cb90   ; .CamSetQuality__7CPStateFQ27CPState13CameraQuality
+00266628: 480000ac  b        0x2666d4
+0026662c: 807f00e8  lwz      r3, 0xe8(r31)
+00266630: 28030000  cmplwi   r3, 0
+00266634: 4182000c  beq      0x266640
+00266638: 38800000  li       r4, 0
+0026663c: 482a4d15  bl       0x50b350   ; .SetState__9cTSWinBtnFi
+00266640: 807f00ec  lwz      r3, 0xec(r31)
+00266644: 28030000  cmplwi   r3, 0
+00266648: 4182000c  beq      0x266654
+0026664c: 38800000  li       r4, 0
+00266650: 482a4d01  bl       0x50b350   ; .SetState__9cTSWinBtnFi
+00266654: 807f00cc  lwz      r3, 0xcc(r31)
+00266658: 38800002  li       r4, 2
+0026665c: 4bfa6535  bl       0x20cb90   ; .CamSetQuality__7CPStateFQ27CPState13CameraQuality
+00266660: 48000074  b        0x2666d4
+00266664: 38600000  li       r3, 0
+00266668: 48000070  b        0x2666d8
+0026666c: 801f00f4  lwz      r0, 0xf4(r31)
+00266670: 28000000  cmplwi   r0, 0
+00266674: 41820060  beq      0x2666d4
+00266678: 801f00f8  lwz      r0, 0xf8(r31)
+0026667c: 28000000  cmplwi   r0, 0
+00266680: 41820054  beq      0x2666d4
+00266684: 389f00d4  addi     r4, r31, 0xd4
+00266688: 387f00f4  addi     r3, r31, 0xf4
+0026668c: 4800000c  b        0x266698
+00266690: 60000000  nop      
+00266694: 38840004  addi     r4, r4, 4
+00266698: 7c041840  cmplw    r4, r3
+0026669c: 41820010  beq      0x2666ac
+002666a0: 80040000  lwz      r0, 0(r4)
+002666a4: 7c002840  cmplw    r0, r5
+002666a8: 4082ffec  bne      0x266694
+002666ac: 381f00d4  addi     r0, r31, 0xd4
+002666b0: 7c002050  subf     r0, r0, r4
+002666b4: 7c001670  srawi    r0, r0, 2
+002666b8: 387f0000  addi     r3, r31, 0
+002666bc: 7c800194  addze    r4, r0
+002666c0: 4bfffad1  bl       0x266190   ; .SetupPopup__12cWinCamPanelFi
+002666c4: 48000010  b        0x2666d4
+002666c8: 7fe3fb78  mr       r3, r31
+002666cc: 4829e525  bl       0x504bf0   ; .TSOnCommand__6cTSWinFUlUl
+002666d0: 48000008  b        0x2666d8
+002666d4: 38600001  li       r3, 1
+002666d8: 80010068  lwz      r0, 0x68(r1)
+002666dc: 38210060  addi     r1, r1, 0x60
+002666e0: bb41ffe8  lmw      r26, -0x18(r1)
+002666e4: 7c0803a6  mtlr     r0
+002666e8: 4e800020  blr      

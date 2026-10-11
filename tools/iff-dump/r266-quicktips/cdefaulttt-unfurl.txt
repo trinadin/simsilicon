@@ -1,0 +1,55 @@
+003b9020: dbe1fff8  stfd     f31, -8(r1)
+003b9024: 7c0802a6  mflr     r0
+003b9028: ffe00890  fmr      f31, f1
+003b902c: bf61ffdc  stmw     r27, -0x24(r1)
+003b9030: 7c7b1b78  mr       r27, r3
+003b9034: 83c2b528  lwz      r30, -0x4ad8(r2)
+003b9038: 90010008  stw      r0, 8(r1)
+003b903c: 9421ff80  stwu     r1, -0x80(r1)
+003b9040: 80c30078  lwz      r6, 0x78(r3)
+003b9044: 80a30080  lwz      r5, 0x80(r3)
+003b9048: 8004000c  lwz      r0, 0xc(r4)
+003b904c: 7ca62850  subf     r5, r6, r5
+003b9050: 83840000  lwz      r28, 0(r4)
+003b9054: 7fa50050  subf     r29, r5, r0
+003b9058: 4be61559  bl       0x21a5b0   ; .GetH__6cTSWinCFv
+003b905c: 3be30000  addi     r31, r3, 0
+003b9060: 387b0000  addi     r3, r27, 0
+003b9064: 4be6158d  bl       0x21a5f0   ; .GetW__6cTSWinCFv
+003b9068: 38030000  addi     r0, r3, 0
+003b906c: 7cfdfa14  add      r7, r29, r31
+003b9070: 387b0000  addi     r3, r27, 0
+003b9074: 7cdc0214  add      r6, r28, r0
+003b9078: 819b0000  lwz      r12, 0(r27)
+003b907c: 389c0000  addi     r4, r28, 0
+003b9080: 38bd0000  addi     r5, r29, 0
+003b9084: 818c0068  lwz      r12, 0x68(r12)
+003b9088: 481e9959  bl       0x5a29e0
+003b908c: 80410014  lwz      r2, 0x14(r1)
+003b9090: c01e0000  lfs      f0, 0(r30)
+003b9094: fc00f800  fcmpu    cr0, f0, f31
+003b9098: 4082000c  bne      0x3b90a4
+003b909c: 38000001  li       r0, 1
+003b90a0: 981b00dc  stb      r0, 0xdc(r27)
+003b90a4: c03e0008  lfs      f1, 8(r30)
+003b90a8: c01e0004  lfs      f0, 4(r30)
+003b90ac: ec0107fa  fmadds   f0, f1, f31, f0
+003b90b0: fc00001e  fctiwz   f0, f0
+003b90b4: d8010040  stfd     f0, 0x40(r1)
+003b90b8: 80010044  lwz      r0, 0x44(r1)
+003b90bc: 2c000000  cmpwi    r0, 0
+003b90c0: 901b00e0  stw      r0, 0xe0(r27)
+003b90c4: 40800010  bge      0x3b90d4
+003b90c8: 38000000  li       r0, 0
+003b90cc: 901b00e0  stw      r0, 0xe0(r27)
+003b90d0: 48000014  b        0x3b90e4
+003b90d4: 2c0000ff  cmpwi    r0, 0xff
+003b90d8: 4081000c  ble      0x3b90e4
+003b90dc: 380000ff  li       r0, 0xff
+003b90e0: 901b00e0  stw      r0, 0xe0(r27)
+003b90e4: 80010088  lwz      r0, 0x88(r1)
+003b90e8: 38210080  addi     r1, r1, 0x80
+003b90ec: cbe1fff8  lfd      f31, -8(r1)
+003b90f0: bb61ffdc  lmw      r27, -0x24(r1)
+003b90f4: 7c0803a6  mtlr     r0
+003b90f8: 4e800020  blr      

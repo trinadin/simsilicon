@@ -1,0 +1,34 @@
+00279790: 93e1fffc  stw      r31, -4(r1)
+00279794: 7c0802a6  mflr     r0
+00279798: 83e2afd0  lwz      r31, -0x5030(r2)
+0027979c: 93c1fff8  stw      r30, -8(r1)
+002797a0: 3bc40000  addi     r30, r4, 0
+002797a4: 93a1fff4  stw      r29, -0xc(r1)
+002797a8: 3ba30000  addi     r29, r3, 0
+002797ac: 90010008  stw      r0, 8(r1)
+002797b0: 9421ffb0  stwu     r1, -0x50(r1)
+002797b4: 4828fe5d  bl       0x509610   ; .__ct__6cTSWinFv
+002797b8: c03f0004  lfs      f1, 4(r31)
+002797bc: 387d00dc  addi     r3, r29, 0xdc
+002797c0: 80029618  lwz      r0, -0x69e8(r2)
+002797c4: fc400890  fmr      f2, f1
+002797c8: 901d0000  stw      r0, 0(r29)
+002797cc: 4bed51e5  bl       0x14e9b0   ; .__ct__13RampGeneratorFff
+002797d0: 93dd00cc  stw      r30, 0xcc(r29)
+002797d4: 38000000  li       r0, 0
+002797d8: 387d0000  addi     r3, r29, 0
+002797dc: 901d00d0  stw      r0, 0xd0(r29)
+002797e0: 901d00d4  stw      r0, 0xd4(r29)
+002797e4: 981d00d8  stb      r0, 0xd8(r29)
+002797e8: 901d00fc  stw      r0, 0xfc(r29)
+002797ec: 901d0100  stw      r0, 0x100(r29)
+002797f0: 981d0108  stb      r0, 0x108(r29)
+002797f4: 901d0104  stw      r0, 0x104(r29)
+002797f8: 901d010c  stw      r0, 0x10c(r29)
+002797fc: 80010058  lwz      r0, 0x58(r1)
+00279800: 38210050  addi     r1, r1, 0x50
+00279804: 7c0803a6  mtlr     r0
+00279808: 83e1fffc  lwz      r31, -4(r1)
+0027980c: 83c1fff8  lwz      r30, -8(r1)
+00279810: 83a1fff4  lwz      r29, -0xc(r1)
+00279814: 4e800020  blr      
