@@ -380,6 +380,52 @@ namespace FSO.SimAntics
             return vol;
         }
 
+        /// <summary>
+        /// AUD-22: the native near-screen-edge rolloff MEASURE (cBoxX::
+        /// GetInstanceVolPan FLAT 0x2E1E80, the component att==0 skips;
+        /// full decode receipt evidence/AUD-22/edge-law-decode.md). All in
+        /// screen pixels, origin top-left: the inner no-rolloff window is
+        /// X in [20%, 80%] of the viewport width (0x2E2014-40: left margin
+        /// W*20/100, right W - W*20/100) and Y in [30% of height, the
+        /// bottom edge] (0x2E2044-94: top margin H*30/100, NO bottom
+        /// margin). Returns how far (screen px) the position lies outside
+        /// that rectangular window — the max of the two axis measures;
+        /// exactly 0 inside (the Y measure is clamped >= 0 by construction,
+        /// so an inside-band negative X measure loses the max to 0).
+        /// </summary>
+        public static int NativeEdgeMeasure(float sx, float sy, float w, float h)
+        {
+            // X leg: signed distance from the [0.2W, 0.8W] band.
+            float dx = (sx >= w * 0.2f) ? (sx - w * 0.8f) : (w * 0.2f - sx);
+            // Y leg: distance below the bottom edge, else above the 30%
+            // line (clamped >= 0).
+            float dy = (sy > h) ? (sy - h) : Math.Max(0f, h * 0.3f - sy);
+            float edge = Math.Max(dx, dy);
+            return (edge <= 0f) ? 0 : (int)edge;
+        }
+
+        /// <summary>
+        /// AUD-22: the native edge rolloff applied to the zoom-law volume
+        /// (0x2E20A8-118): edge == 0 -> untouched; edge >= 600 -> the floor
+        /// (800 for kSplStereo att == 0x2711, else 0); otherwise a LINEAR
+        /// fade of the above-floor part, floor + (vol-floor)*(600-edge)/600
+        /// in integer math, clamped to [floor, 1024]. The aud22 probe pins
+        /// this and NativeEdgeMeasure through these same production
+        /// functions.
+        /// </summary>
+        public static int NativeEdgeVol(int vol1024, uint att, int edgePx)
+        {
+            const int fadePx = 600; // 0x258
+            int floor = (att == 0x2711) ? 800 : 0;
+            if (vol1024 < floor) vol1024 = floor;
+            if (edgePx <= 0) return Math.Min(vol1024, 1024);
+            if (edgePx >= fadePx) return floor;
+            int v = floor + (vol1024 - floor) * (fadePx - edgePx) / fadePx;
+            if (v < floor) v = floor;
+            if (v > 1024) v = 1024;
+            return v;
+        }
+
         public void TickSounds()
         {
             if (!UseWorld) return;
@@ -455,14 +501,40 @@ namespace FSO.SimAntics
                         //              full 0x400 wherever audible.
                         //   otherwise: the zoom law below uses the per-track att
                         //              (kSplStereo 0x2711 floors at 800/1024).
-                        // The near-screen-edge rolloff (Pan flag) keeps the port's
-                        // existing predicate — the exact native edge law remains
-                        // a disclosed AUD-20 residual. TSO is unchanged.
+                        // TSO is unchanged (its Pan-flag rolloff keeps the
+                        // historic port law).
                         uint att = ts1 ? sound.kSpl : 0x14;
                         bool attBypass = ts1 && att == 0;
 
                         if (attBypass) pan = 0; // no pan offset at att == 0
-                        volume = (!attBypass && SoundThreads[i].Pan) ? 1 - (float)Math.Max(0, Math.Min(1, Math.Sqrt(scrPos.X * scrPos.X + scrPos.Y * scrPos.Y) / worldSpace.WorldPxWidth)) : 1;
+
+                        // AUD-22: TS1 near-screen-edge rolloff — the native
+                        // RECTANGULAR window law (cBoxX::GetInstanceVolPan
+                        // 0x2E1E80 component that att==0 skips; receipt
+                        // evidence/AUD-22/edge-law-decode.md): inner window
+                        // X in [20%,80%] of the viewport, Y in [30%,100%]
+                        // of height, linear fade of the above-floor part
+                        // over 600 screen px outside it. Replaces the port's
+                        // old radial center-distance predicate
+                        // (1 - clamp(dist/WorldPxWidth)), which attenuated
+                        // ON-SCREEN sounds up to ~60% at the corners where
+                        // the native keeps full zoom-law volume inside the
+                        // window. scrPos is already the screen-px offset
+                        // from the viewport center (GetScreenPos projects
+                        // through View*Projection; WorldPxWidth/Height are
+                        // the viewport's own pixel dimensions), so the
+                        // measure ports 1:1 with no zoom rescale.
+                        int edgePx = 0;
+                        if (ts1 && !attBypass && SoundThreads[i].Pan)
+                        {
+                            edgePx = NativeEdgeMeasure(
+                                scrPos.X + worldSpace.WorldPxWidth / 2f,
+                                scrPos.Y + worldSpace.WorldPxHeight / 2f,
+                                worldSpace.WorldPxWidth, worldSpace.WorldPxHeight);
+                        }
+
+                        if (ts1) volume = 1;
+                        else volume = (SoundThreads[i].Pan) ? 1 - (float)Math.Max(0, Math.Min(1, Math.Sqrt(scrPos.X * scrPos.X + scrPos.Y * scrPos.Y) / worldSpace.WorldPxWidth)) : 1;
                         volume *= worldState.PreciseZoom;
 
                         if (SoundThreads[i].Zoom)
@@ -477,10 +549,21 @@ namespace FSO.SimAntics
                                 // (returns 0x400). The port enum WorldZoom
                                 // (Far=1, Medium=2, Near=3) IS the native zoom
                                 // integer. PreciseZoom (==1 at rest) stays as the
-                                // port's transition smoothing.
-                                volume *= NativeInstanceVol((int)worldState.Zoom, att) / 1024f;
+                                // port's transition smoothing. AUD-22 composes
+                                // the edge fade INTO this multiply — natively the
+                                // rolloff is applied after the zoom law and fades
+                                // (vol-floor), so the stereo floor survives.
+                                volume *= NativeEdgeVol(NativeInstanceVol((int)worldState.Zoom, att), att, edgePx) / 1024f;
                             }
                             else volume /= 4 - (int)worldState.Zoom;
+                        }
+                        else if (edgePx != 0)
+                        {
+                            // AUD-22: Pan-flagged without the Zoom flag — the
+                            // native composes the edge fade after the volume
+                            // law; with no zoom law the base is 0x400, so fade
+                            // that toward the floor the same way.
+                            volume *= NativeEdgeVol(0x400, att, edgePx) / 1024f;
                         }
                     }
                     if (ts1)
