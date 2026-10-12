@@ -31,7 +31,7 @@ retained 800x600 / 1024x768 captures expose that remaining gap. Evidence:
 
 ### Wave-4 gates (2026-10-08)
 
-Default-suite additions (the battery is 156 checks with all of these):
+Default-suite additions (the battery is 160 checks with all of these):
 
 - **`ui37`** — UI-37: column scrolling on the decoded animated law (ScrollTo ramp
   + 200 ms autorepeat), view-pie cell ladder/magnitude/commit clamps.
@@ -56,6 +56,26 @@ Default-suite additions (the battery is 156 checks with all of these):
 - **`ulpets`** — EXP-15 (+follow-up): Unleashed pet-AI depth — the owner pie rows,
   the training push (row 45 → action 8341), the show pedestal, the record-restore
   person-class law.
+
+### Wave-2 gates (2026-10-12)
+
+Merged with the wave-2 close-out (main 0bb336204; battery PASS 160/0 from the
+dist). These run in the default suite; targeted runs need the corpus family
+(e.g. `aud22,corpus`, `ui39,corpus`, `ui40,corpus`):
+
+- **`aud22`** — AUD-22: the near-screen-edge sound rolloff law (rectangular
+  [20%,80%]×[30%,100%] viewport window, 600 px linear fade) replacing the
+  port's radial approximation, plus track-keyed channel dedup (one channel per
+  track, lazy Dead cleanup — 49 shared-track groups no longer layer).
+- **`ui39`** — UI-39: the native Quick Tips presenter (250 ms hover-dwell
+  cOptionsMgr::SetQuickTips law; gated by TS1QuickTips; OpenPopup same-button
+  toggle + hover-out dismissal; tier-2 Product-built-button subtlety disclosed).
+- **`ui40`** — UI-40: the native Interface FX (BoboVision) window law — the
+  mode-window SetPanel fades (333 ms linear ramps, FX-gated snap), options
+  fade-in, reversal complements, and the dialog 128/255 fixed translucency
+  composite on the production surfaces.
+- `ssfame` EXTENDED with the friends-gate (full save/restore of the
+  ssfame-friends boundary pin).
 
 Opt-in takeovers (end the run at their verdict; run solo):
 
@@ -262,7 +282,7 @@ pixel parity. It never places a call or saves fixture photos. R238 evidence is
 in `tools/iff-dump/r238/ui-restoration.md`; the historical R195 strip/10px row
 and R161 fixed Budget board claims below are superseded.
 
-    corpus,lot,motive,mood,load,savedthreads,relation,censor,rel-key,rel-mode,names,audio,jobs,npcinfo,persondata,travelinv,career,freewill,freewillvar,personality,motiveinit,skills,motiveact,relact,money,ttab,ttas,opcodes,genericcall12,genericcall13,genericcall14,callgraph,globalcalls,catalog,snd,iff,objd,ctss,strs,consts,bhvi,bhop,dgrp,slot,operand,opmx,chunks,brainlive,deathchain,savesim,uidump,uipal,loadscreen,carseek,uichrome,uitoolbar,uicur,uiglyph,uiboot,uilogo,uianim,uinbhd,uisplash,uidialog,uilotq,uilive,uijob,uivis,uicas,uidtips,uivfont,uimpanel,uiopts,uibuy,uiexpband,uibandlaw,uienamat,uiinterest,uiintvals,uiexpint,uiexprand,uiconv,uibrand,uidesc,uitt,uibuild,uibldt,uiinterest,uiroof,uigauge,uirate,uihouse,uivalue,uitext,uisurvey,uizoomcage,uicp,uidlgchrome,uibargeom,uiqueuegeom,uicasorig,uirel,uinav,uibudget,uihelp,uiscrap,uipie,uiphone,uismall,uiballoon,uisyschrome,uibigbtn
+    corpus,lot,motive,mood,load,savedthreads,relation,censor,rel-key,rel-mode,names,audio,jobs,npcinfo,persondata,travelinv,career,freewill,freewillvar,personality,motiveinit,skills,motiveact,relact,money,ttab,ttas,opcodes,genericcall12,genericcall13,genericcall14,callgraph,globalcalls,catalog,snd,iff,objd,ctss,strs,consts,bhvi,bhop,dgrp,slot,operand,opmx,chunks,brainlive,deathchain,savesim,uidump,uipal,loadscreen,carseek,uichrome,uitoolbar,uicur,uiglyph,uiboot,uilogo,uianim,uinbhd,uisplash,uidialog,uilotq,uilive,uijob,uivis,uicas,uidtips,uivfont,uimpanel,uiopts,uibuy,uiexpband,uibandlaw,uienamat,uiinterest,uiintvals,uiexpint,uiexprand,uiconv,uibrand,uidesc,uitt,uibuild,uibldt,uiinterest,uiroof,uigauge,uirate,uihouse,uivalue,uitext,uisurvey,uizoomcage,uicp,uidlgchrome,uibargeom,uiqueuegeom,uicasorig,uirel,uinav,uibudget,uihelp,uiscrap,uipie,uiphone,uismall,uiballoon,uisyschrome,uibigbtn,simvis,uidirt,uistrfam,uifriend,uipanelentry,uicheat,uitrans,uivita,uivitaplay,uicheathelp,uitotal,uiviewpie,censorpixel,roomlaw,uitutorial,uicapture,uipip,uiclip,uicutaway,uitutorial-highlight,uir258,uitall,webexport,ui37,aud19,cc06,uidtbar,aud20,aud22,ssfame,mmquest,ulpets,ui39,ui40
 
 The default R168 gate contained **106 checks**. R168 added `genericcall14`,
 which pins representative original stereo/piano callers, raw mode-14 operand

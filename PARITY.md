@@ -387,8 +387,10 @@ Product changes, by card:
   suspend/restore law), Shadows (WorldConfig.ObjShadows gate) are live-wired; the
   OPTIONS dummy category is DELETED (plaque hidden on every platform). The
   remaining R121 rows are named BUILD follow-ups (Quick Tips presenter, Export
-  HTML at save, grass/TerrainDetail); Interface FX stays partial (PIP-fade only,
-  disclosed).
+  HTML at save, grass/TerrainDetail); Interface FX is CLOSED by UI-40 (the
+  mode-window SetPanel fades + dialog 128/255 translucency per
+  coordination/evidence/UI-40/interfacefx-law.md; PIP-fade-only disclosure
+  retired).
 - **UI-27 relationship filters + grade letters** — the R159 filter residual is
   RESOLVED on the decoded law (no stored flags, computed predicates: friends =
   mutual RelMatrix slot-0 >= 50 both directions; famous = persisted PD81 != 0)

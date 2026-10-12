@@ -51,10 +51,12 @@ needs real-world testing on real Macs and real saves. That's where you come in:
 - **Attach the logs.** `~/Documents/Simitone/game.log` (screen/content-load tracing) and the
   crash log next to it. They're plain text — paste the tail (last ~50 lines) or the whole thing.
 - **Know the known gaps before filing.** The current gap list lives in
-  [PARITY.md](PARITY.md) → "Where the game stands". As of 2026-10-08: footsteps,
+  [PARITY.md](PARITY.md) → "Where the game stands". As of 2026-10-12: footsteps,
   the neighbourhood layout montage, the UL filter toolbar, Superstar's fame
   surfaces and gendered job titles, Vacation's save-on-vacation/bookings and
-  score/souvenir systems, and Makin' Magic's quest lines are on decoded native
+  score/souvenir systems, Makin' Magic's quest lines, the near-screen-edge
+  audio rolloff + per-track channel attribution, the Quick Tips presenter,
+  and the Interface FX (BoboVision) mode-window fades are on decoded native
   laws; the view-pie pop gesture stays a disclosed model (the original's
   window-manager vtable was not shipped — not statically recoverable). The
   vacation souvenir carry-home is live end-to-end for every stocked
