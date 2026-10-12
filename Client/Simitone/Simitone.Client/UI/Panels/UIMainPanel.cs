@@ -61,6 +61,35 @@ namespace Simitone.Client.UI.Panels
         public UISubpanel SubPanel;
         public TS1GameScreen Game;
 
+        // UI-40: the native Interface FX ("BoboVision") mode-window fades —
+        // cWinCPanel::SetPanel 0x26EEE0 drives each mode window through
+        // AsyncShowHideWin (333ms linear, FX-gated snap otherwise); law
+        // evidence/UI-40/interfacefx-law.md. One fade per mode chrome; the
+        // probe supplies ModeFadeClock to drive the ramps deterministically.
+        // Installing a new clock domain resets any in-flight ramp (a ramp
+        // begun on the prior clock has a FadeEnd in that domain and would
+        // appear never-finished under the new one — the ui40 probe hit
+        // exactly this by swapping to a small synthetic clock).
+        private Func<long> _modeFadeClock = () => Environment.TickCount64;
+        public Func<long> ModeFadeClock
+        {
+            get => _modeFadeClock;
+            set
+            {
+                _modeFadeClock = value;
+                if (_peopleFade != null) _peopleFade.Cancel();
+                if (_archFade != null) _archFade.Cancel();
+                if (_buyFade != null) _buyFade.Cancel();
+                if (_camFade != null) _camFade.Cancel();
+                if (_optionsFade != null) _optionsFade.Cancel();
+            }
+        }
+        private Simitone.Client.UI.Controls.UIOriginalWindowFade _peopleFade, _archFade, _buyFade, _camFade, _optionsFade;
+        public int PeopleFadeOpacity => _peopleFade?.Opacity ?? 255;
+        public int ArchFadeOpacity => _archFade?.Opacity ?? 255;
+        public int BuyFadeOpacity => _buyFade?.Opacity ?? 255;
+        public int OptionsFadeOpacity => _optionsFade?.Opacity ?? 255;
+
         // R141: the ONE original speed cluster at the toolbar's right end — pause
         // (kPause 2026, 60x30 = 2x 30x30) + the three speed buttons (kSpeed1/2/3
         // 4705-4707, 44/80/128x15 sheets). This replaces BOTH the desktop-UCP
@@ -496,6 +525,16 @@ namespace Simitone.Client.UI.Panels
                 PeopleChrome.SetTabSelected(0);
             }
 
+            // UI-40: initialize the Interface FX mode fades. The chromes are
+            // all mounted by now; the clock closures read the assignable
+            // ModeFadeClock so the autotest can drive the ramps deterministically.
+            _peopleFade = new Simitone.Client.UI.Controls.UIOriginalWindowFade { Clock = () => ModeFadeClock() };
+            _archFade = new Simitone.Client.UI.Controls.UIOriginalWindowFade { Clock = () => ModeFadeClock() };
+            _buyFade = new Simitone.Client.UI.Controls.UIOriginalWindowFade { Clock = () => ModeFadeClock() };
+            _camFade = new Simitone.Client.UI.Controls.UIOriginalWindowFade { Clock = () => ModeFadeClock() };
+            _optionsFade = new Simitone.Client.UI.Controls.UIOriginalWindowFade { Clock = () => ModeFadeClock() };
+            if (TallSubpanel != null) _peopleFade.AttachRider(TallSubpanel);
+
             // R122: the original catalog paging arrows (BUY mode only) — see
             // ToggleBuySortPage. Placement right of the sort switcher is ours
             // (canon gives the art + the tooltip strings, not a position).
@@ -607,12 +646,17 @@ namespace Simitone.Client.UI.Panels
             // These are mutually exclusive cWinCPanel children. Clear every
             // desktop mode chrome first so BUILD <-> BUY also cannot retain the
             // previously visible child; the selected branch below enables one.
+            // UI-40: with Interface FX on, the RETIRING mode windows fade OUT
+            // (AsyncShowHideWin 333ms linear) instead of snapping hidden — the
+            // native SetPanel keeps the outgoing child visible through its ramp
+            // (evidence/UI-40/interfacefx-law.md §2a). The incoming chrome is
+            // faded IN by the per-mode branch below.
             if (Game.Desktop)
             {
-                if (PeopleChrome != null) PeopleChrome.Visible = false;
-                if (ArchChrome != null) ArchChrome.Visible = false;
-                if (BuyChrome != null) BuyChrome.Visible = false;
-                if (CameraChrome != null) CameraChrome.Visible = false;
+                HideRetiringModeChrome(PeopleChrome, _peopleFade, UIMainPanelMode.LIVE, mode);
+                HideRetiringModeChrome(ArchChrome, _archFade, UIMainPanelMode.BUILD, mode);
+                HideRetiringModeChrome(BuyChrome, _buyFade, UIMainPanelMode.BUY, mode);
+                HideRetiringModeChrome(CameraChrome, _camFade, UIMainPanelMode.CAMERA, mode);
             }
 
             Game.LotControl.World.State.BuildMode = 0;
@@ -672,7 +716,7 @@ namespace Simitone.Client.UI.Panels
             // pattern row; BUY: room main, Living, default subsort applied).
             if (Game.Desktop)
             {
-                if (PeopleChrome != null) PeopleChrome.Visible = live;
+                if (PeopleChrome != null) ShowModeChrome(PeopleChrome, _peopleFade, live);
                 bool plaque = !live && ArchChrome == null && BuyChrome == null;   // fallback if chrome failed
                 // R146: the decoded band now owns BUY on EVERY lot — home lots
                 // use the room/function sorts (first entry: room main, Living,
@@ -683,14 +727,14 @@ namespace Simitone.Client.UI.Panels
                 if (mode == UIMainPanelMode.BUILD && ArchChrome != null)   // build law is lot-independent
                 {
                     Switcher.MainButton.Visible = false;
-                    ArchChrome.Visible = true;
+                    ShowModeChrome(ArchChrome, _archFade, true);
                     ArchChrome.SetRoofMode(false);
                     SetSubpanel(null);   // engine: pattern row empty until a tool is picked
                 }
                 else if (mode == UIMainPanelMode.BUY && BuyChrome != null)
                 {
                     Switcher.MainButton.Visible = false;
-                    BuyChrome.Visible = true;
+                    ShowModeChrome(BuyChrome, _buyFade, true);
                     var lotMode = GetLotType(false);
                     BuyChrome.SetLotMode(lotMode);
                     BuyChrome.ApplyEngineDefault();
@@ -702,7 +746,7 @@ namespace Simitone.Client.UI.Panels
                     Switcher.MainButton.Visible = false;
                     if (CameraChrome != null)
                     {
-                        CameraChrome.Visible = true;
+                        ShowModeChrome(CameraChrome, _camFade, true);
                         CameraChrome.RefreshSelection();
                     }
                 }
@@ -711,11 +755,20 @@ namespace Simitone.Client.UI.Panels
                     // cWinOptions itself owns the full 804x100 band. The green
                     // house/category plaque was Simitone mobile chrome.
                     Switcher.MainButton.Visible = false;
+                    // UI-40: the options subpanel fades IN on mount (native
+                    // cWinOptions window). The fade's show path early-returns
+                    // if the root is already visible, so hide it first and let
+                    // the fade own the reveal.
+                    if (SubPanel != null)
+                    {
+                        SubPanel.Visible = false;
+                        ShowModeChrome(SubPanel, _optionsFade, true);
+                    }
                 }
                 else
                 {
-                    if (ArchChrome != null) ArchChrome.Visible = false;
-                    if (BuyChrome != null) BuyChrome.Visible = false;
+                    // The retiring Arch/Buy chromes were faded/snapped out at the
+                    // top (HideRetiringModeChrome); do not snap them here.
                     Switcher.MainButton.Visible = !live || plaque;
                 }
             }
@@ -728,6 +781,28 @@ namespace Simitone.Client.UI.Panels
             if (TallSubpanel != null) TallSubpanel.Visible = Game.Desktop && mode == UIMainPanelMode.LIVE;
 
             ModeChanged?.Invoke(mode);
+        }
+
+        // UI-40: the native Interface FX (BoboVision) mode-chrome fade helpers
+        // (cWinCPanel::SetPanel 0x26EEE0 — AsyncShowHideWin 333ms linear when
+        // the option is ON, plain ShowWindow/HideWindow snaps when OFF; law
+        // evidence/UI-40/interfacefx-law.md §2a). HideRetiringModeChrome is
+        // called at the mode boundary for every chrome EXCEPT the incoming one
+        // (so the outgoing stays logically visible through its fade-out, as the
+        // native does); ShowModeChrome drives the incoming one.
+        private static void HideRetiringModeChrome(UIElement chrome, Simitone.Client.UI.Controls.UIOriginalWindowFade fade,
+            UIMainPanelMode chromeMode, UIMainPanelMode newMode)
+        {
+            if (chrome == null || fade == null) return;
+            if (newMode == chromeMode) return;
+            if (GlobalSettings.Default.TS1InterfaceFX) fade.Fade(chrome, false);
+            else { fade.Cancel(); chrome.Visible = false; }   // snap at FULL opacity — a stale mid-ramp otherwise leaves the tree at <1 and blocks clicks/paint (UIButton input gate)
+        }
+        private static void ShowModeChrome(UIElement chrome, Simitone.Client.UI.Controls.UIOriginalWindowFade fade, bool show)
+        {
+            if (chrome == null || fade == null) return;
+            if (GlobalSettings.Default.TS1InterfaceFX) fade.Fade(chrome, show);
+            else { fade.Cancel(); chrome.Visible = show; }   // snap at FULL opacity — see HideRetiringModeChrome
         }
 
         public void Switcher_OnCategorySelect(int obj)
@@ -1208,6 +1283,16 @@ namespace Simitone.Client.UI.Panels
         {
             base.Update(state);
             Visible = _CurWidth > 0;
+
+            // UI-40: advance the Interface FX mode fades every frame (the ramp
+            // opacity is applied to the chrome trees here; the native evaluates
+            // opacity at paint time — the port's per-frame Update is the same
+            // cadence).
+            if (_peopleFade != null) _peopleFade.Advance();
+            if (_archFade != null) _archFade.Advance();
+            if (_buyFade != null) _buyFade.Advance();
+            if (_camFade != null) _camFade.Advance();
+            if (_optionsFade != null) _optionsFade.Advance();
 
             // UI-22: keep the build-mode undo/redo buttons exactly on the
             // architecture stack (native UpdateViewFromCPState dirty&4 refresh

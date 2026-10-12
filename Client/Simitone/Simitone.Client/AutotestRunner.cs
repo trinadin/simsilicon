@@ -80,7 +80,7 @@ namespace Simitone.Client
             // candidate house ids, tried in order until one loads with >=1 avatar
             public static string HouseCandidates =
                 "5,4,3,2,1,0,6,7,8,9,10,11,21,22,23,24,25,26,27,28,29,30,40,41,42,43,44,45,46,47,48";
-            public static string Checks = "corpus,lot,motive,mood,load,savedthreads,relation,censor,rel-key,rel-mode,names,audio,jobs,npcinfo,persondata,travelinv,career,freewill,freewillvar,personality,motiveinit,skills,motiveact,relact,money,ttab,ttas,opcodes,genericcall12,genericcall13,genericcall14,callgraph,globalcalls,catalog,snd,iff,objd,ctss,strs,consts,bhvi,bhop,dgrp,slot,operand,opmx,chunks,brainlive,deathchain,savesim,uidump,uipal,loadscreen,carseek,uichrome,uitoolbar,uicur,uiglyph,uiboot,uilogo,uianim,uinbhd,uisplash,uidialog,uilotq,uilive,uijob,uivis,uicas,uidtips,uivfont,uimpanel,uiopts,uibuy,uiexpband,uibandlaw,uienamat,uiinterest,uiintvals,uiexpint,uiexprand,uiconv,uibrand,uidesc,uitt,uibuild,uibldt,uiinterest,uiroof,uigauge,uirate,uihouse,uivalue,uitext,uisurvey,uizoomcage,uicp,uidlgchrome,uibargeom,uiqueuegeom,uicasorig,uirel,uinav,uibudget,uihelp,uiscrap,uipie,uipiesub,uiphone,uismall,uiballoon,uisyschrome,uibigbtn,simvis,uidirt,uistrfam,uifriend,uipanelentry,uicheat,uitrans,uivita,uivitaplay,uicheathelp,uitotal,uiviewpie,censorpixel,roomlaw,uitutorial,uicapture,uipip,uiclip,uicutaway,uitutorial-highlight,uir258,uitall,webexport,ui37,aud19,cc06,uidtbar,aud20,aud22,ssfame,mmquest,ulpets,ui39";
+            public static string Checks = "corpus,lot,motive,mood,load,savedthreads,relation,censor,rel-key,rel-mode,names,audio,jobs,npcinfo,persondata,travelinv,career,freewill,freewillvar,personality,motiveinit,skills,motiveact,relact,money,ttab,ttas,opcodes,genericcall12,genericcall13,genericcall14,callgraph,globalcalls,catalog,snd,iff,objd,ctss,strs,consts,bhvi,bhop,dgrp,slot,operand,opmx,chunks,brainlive,deathchain,savesim,uidump,uipal,loadscreen,carseek,uichrome,uitoolbar,uicur,uiglyph,uiboot,uilogo,uianim,uinbhd,uisplash,uidialog,uilotq,uilive,uijob,uivis,uicas,uidtips,uivfont,uimpanel,uiopts,uibuy,uiexpband,uibandlaw,uienamat,uiinterest,uiintvals,uiexpint,uiexprand,uiconv,uibrand,uidesc,uitt,uibuild,uibldt,uiinterest,uiroof,uigauge,uirate,uihouse,uivalue,uitext,uisurvey,uizoomcage,uicp,uidlgchrome,uibargeom,uiqueuegeom,uicasorig,uirel,uinav,uibudget,uihelp,uiscrap,uipie,uipiesub,uiphone,uismall,uiballoon,uisyschrome,uibigbtn,simvis,uidirt,uistrfam,uifriend,uipanelentry,uicheat,uitrans,uivita,uivitaplay,uicheathelp,uitotal,uiviewpie,censorpixel,roomlaw,uitutorial,uicapture,uipip,uiclip,uicutaway,uitutorial-highlight,uir258,uitall,webexport,ui37,aud19,cc06,uidtbar,aud20,aud22,ssfame,mmquest,ulpets,ui39,ui40";
             public static int TimeoutMs = 300000; // hard cap (real ms)
             public static bool ExitOnDone = true;
         }
@@ -10811,6 +10811,23 @@ namespace Simitone.Client
                 }
                 catch (Exception ex39) { Log("AUTOTEST ui39 EXC " + ex39); Fail("ui39"); }
             }
+            // UI-40 'ui40' (additive; same live-screen context as ui39/opts — needs
+            // the corpus family, so targeted runs pass "ui40,corpus"): the native
+            // Interface FX (BoboVision) window-effect law — the mode-chrome 333ms
+            // fades + dialog 128/255 translucency (evidence/UI-40/interfacefx-law.md).
+            if (CheckEnabled("ui40"))
+            {
+                try
+                {
+                    if (AutotestUi40.Check(_screen, out string ui40diag))
+                    {
+                        Log("AUTOTEST ui40 " + ui40diag);
+                        Pass("ui40");
+                    }
+                    else { Log("AUTOTEST ui40: one or more interface-fx law probes failed: " + ui40diag); Fail("ui40"); }
+                }
+                catch (Exception ex40) { Log("AUTOTEST ui40 EXC " + ex40); Fail("ui40"); }
+            }
             // UI-26 'uioptswire' (opt-in, focused): engine wires for the options rows;
             // body in AutotestUI26Wire.cs (r260-options-readiness WIRE rows).
             if (CheckEnabled("uioptswire"))
@@ -10824,7 +10841,7 @@ namespace Simitone.Client
                 catch (Exception ex) { Log("AUTOTEST uioptswire EXC " + ex); Fail("uioptswire"); }
             }
             if (CheckEnabled("uibuy")) CheckUIBuyCatalog();
-            if (CheckEnabled("uiexpband")) CheckUIExpBand();
+            if (CheckEnabled("uiexpband")) { var _fx = GlobalSettings.Default.TS1InterfaceFX; GlobalSettings.Default.TS1InterfaceFX = false; try { CheckUIExpBand(); } finally { GlobalSettings.Default.TS1InterfaceFX = _fx; } }   // UI-40: composition probes sample immediately after mode switches; the native fade-in would leave the chrome at alpha 0 (the transition law is ui40's scope)
             // R148 'uibandlaw': the buy-band interaction chrome — click regions,
             // hover states, popup lifecycle + anchor, toggle law, icon fit law.
             if (CheckEnabled("uibandlaw")) CheckUIBandLaw();
@@ -10875,7 +10892,7 @@ namespace Simitone.Client
             // original pipeline. Runs LAST so every surface earlier checks
             // mounted is in the tree.
             if (CheckEnabled("uitotal")) CheckUITotal();
-            if (CheckEnabled("uibuild")) CheckBuildCatalog();
+            if (CheckEnabled("uibuild")) { var _fx = GlobalSettings.Default.TS1InterfaceFX; GlobalSettings.Default.TS1InterfaceFX = false; try { CheckBuildCatalog(); } finally { GlobalSettings.Default.TS1InterfaceFX = _fx; } }   // UI-40: composition probe — snap (see uiexpband note)
             if (CheckEnabled("uibldt")) CheckBuildTools();
             if (CheckEnabled("uiinterest")) CheckInterestGift();
             // R150 'uiintvals': the interest VALUE import — the original's
@@ -10935,7 +10952,7 @@ namespace Simitone.Client
             // UICP (Round 141): the desktop control panel on ORIGINAL engine art —
             // UniversalBack plate + per-mode patches + original button frames + the
             // ONE speed cluster at the toolbar's right end; port chrome removed.
-            if (CheckEnabled("uicp")) CheckUCP();
+            if (CheckEnabled("uicp")) { var _fx = GlobalSettings.Default.TS1InterfaceFX; GlobalSettings.Default.TS1InterfaceFX = false; try { CheckUCP(); } finally { GlobalSettings.Default.TS1InterfaceFX = _fx; } }   // UI-40: composition probe — snap (see uiexpband note)
             // UIDLGCHROME (Round 142): the ORIGINAL system dialog chrome — GenDlg
             // nine-slice + RGB(0,0,82) fill + WinBtn system buttons + the decoded
             // PositionButtons/layout laws; plus the pie-menu canon (PieButt/
@@ -29062,6 +29079,19 @@ namespace Simitone.Client
                             if (mp2.Mode == Simitone.Client.UI.Panels.UIMainPanelMode.BUY)
                                 mp2.SetMode(Simitone.Client.UI.Panels.UIMainPanelMode.LIVE);
                             mp2.SetMode(Simitone.Client.UI.Panels.UIMainPanelMode.BUY);
+                            // Settle the BUY band's configuration (the lot-mode
+                            // routing + engine default defer to a frame) BEFORE
+                            // clicking — otherwise the first click can act on an
+                            // unconfigured band and leave CurrentMain/SortState
+                            // stale, flaking the route check.
+                            {
+                                var _st = new FSO.Common.Rendering.Framework.Model.UpdateState
+                                {
+                                    WindowFocused = true,
+                                    Time = new Microsoft.Xna.Framework.GameTime()
+                                };
+                                for (int f = 0; f < 12; f++) mp2.Update(_st);
+                            }
                             var clickBand = mp2.BuyChrome;
                             var mouseDispatch = typeof(FSO.Client.UI.Controls.UIButton).GetMethod("OnMouseEvent",
                                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
@@ -29081,13 +29111,32 @@ namespace Simitone.Client
                                     FSO.Common.Rendering.Framework.IO.UIMouseEventType.MouseDown, null });
                                 mouseDispatch.Invoke(plaque, new object[] {
                                     FSO.Common.Rendering.Framework.IO.UIMouseEventType.MouseUp, null });
+                                // Settle: the band's CurrentMain/SortState and the
+                                // back-toggle update on a later frame (the plaque
+                                // click defers its routing side-effects). Flush a
+                                // bounded run of Updates before sampling so the
+                                // deferred band state cannot race the read.
+                                {
+                                    var _st = new FSO.Common.Rendering.Framework.Model.UpdateState
+                                    {
+                                        WindowFocused = true,
+                                        Time = new Microsoft.Xna.Framework.GameTime()
+                                    };
+                                    for (int f = 0; f < 12; f++) mp2.Update(_st);
+                                }
                                 var routedPanel = mp2.SubPanel as Simitone.Client.UI.Panels.LiveSubpanels.UIBuyBrowsePanel;
                                 int bit = 1 << slot;
+                                var rMode = routedPanel == null ? -1 : (int)routedPanel.Mode;
+                                var rBand = routedPanel == null ? -99 : routedPanel.BandMainSlot;
+                                var rCur = clickBand.CurrentMain;
+                                var rSort = clickBand.SortState;
+                                var rTogVis = clickBand.Toggle != null && clickBand.Toggle.Visible;
+                                var rTogMember = clickBand.Toggle == null ? "-" : (clickBand.Toggle.Member ?? "-");
                                 bool routed = routedPanel != null
                                     && routedPanel.Mode == Simitone.Client.UI.Panels.LiveSubpanels.UICatalogMode.Studiotown
                                     && routedPanel.BandMainSlot == slot
-                                    && clickBand.CurrentMain == slot && clickBand.SortState == 1
-                                    && clickBand.Toggle.Visible && clickBand.Toggle.Member == studioBack[slot];
+                                    && rCur == slot && rSort == 1
+                                    && rTogVis && rTogMember == studioBack[slot];
                                 bool filtered = routedPanel != null
                                     && routedPanel.FilterCategory != null
                                     && routedPanel.FilterCategory.All(x =>
@@ -29100,7 +29149,9 @@ namespace Simitone.Client
                                 {
                                     studioClicks = false;
                                     studioClickInfo += "slot" + slot + "(art=" + advertised
-                                        + ",route=" + routed + ",filter=" + filtered
+                                        + ",route=" + routed + "[mode=" + rMode + ",band=" + rBand
+                                        + ",cur=" + rCur + ",sort=" + rSort + ",togVis=" + rTogVis
+                                        + ",togM=" + rTogMember + "],filter=" + filtered
                                         + ",anchor=" + anchor + ");";
                                 }
                             }

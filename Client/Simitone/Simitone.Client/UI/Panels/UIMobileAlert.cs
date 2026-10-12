@@ -162,6 +162,15 @@ namespace Simitone.Client.UI.Panels
             this.m_Options = options;
             OriginalPictureDialogKind = originalPictureDialog;
             TutorialAspect = tutorialAspect;
+            // UI-40: native dialog translucency — cSimsApp modal dialogs mount
+            // SetTransparent(1, 0x80) = a FIXED 128/255 alpha (fast-alpha path,
+            // no ramp) when Interface FX is on; evidence/UI-40/interfacefx-law.md
+            // §2c. Tutorial-kind dialogs keep their own presentation (excluded).
+            // The multiplier feeds the whole-window composite draw path (the
+            // UIMobileDialog InterpolatedAnimation setter + the UIMobileAlert
+            // OriginalOpacityMultiplier<1 composite below).
+            OriginalOpacityMultiplier = (OriginalChrome && !TutorialAspect.HasValue
+                && GlobalSettings.Default.TS1InterfaceFX) ? 128f / 255f : 1f;
 
             m_TextStyle = TextStyle.DefaultLabel.Clone();
             m_TextStyle.Size = 19;
