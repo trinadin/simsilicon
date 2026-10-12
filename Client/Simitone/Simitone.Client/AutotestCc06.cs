@@ -393,6 +393,32 @@ namespace Simitone.Client
                     || f.ErrorType == "ArgumentException");
                 if (bootDup != null) Fail("12-bootclean", "boot recorded a duplicate-name failure: " + bootDup.Filename + " | " + bootDup.ErrorMessage);
                 else Pass("12-bootclean");
+
+                // CC06-13 handle-path (closes the round.md residual "UI-preview
+                // consumers of Animator.RunAnimation were not exercised"). The
+                // debug Vitaboy tool (FSO.Debug Vitaboy.cs) drives animations
+                // through Animator.RunAnimation -> AnimationHandle.Update, the
+                // same per-frame consumer a live preview surface uses; cases
+                // 01-12 only exercised the static Animator.RenderFrame guard. An
+                // untranslated motion must leave the bone at its bind pose and
+                // must never throw through this path either.
+                try
+                {
+                    var precip = new FSO.Vitaboy.SimAvatar(adultSkel);
+                    var pelvis = precip.Skeleton.GetBone("PELVIS") ?? precip.Skeleton.RootBone;
+                    var before = pelvis.Translation;
+                    var run = new FSO.Vitaboy.Animator();
+                    var handle = run.RunAnimation(precip, aNocfp);
+                    for (int f = 0; f < aNocfp.NumFrames + 3; f++)
+                    {
+                        var gt = new Microsoft.Xna.Framework.GameTime(TimeSpan.Zero, TimeSpan.FromMilliseconds(f * 34));
+                        handle.Update(gt);
+                        if (handle.Status == AnimationStatus.COMPLETED) break;
+                    }
+                    if (pelvis.Translation != before) Fail("13-handle", "untranslated motion moved a bone via RunAnimation (must be a still pose)");
+                    else Pass("13-handle");
+                }
+                catch (Exception e) { Fail("13-handle", e.GetType().Name + " " + e.Message); }
             }
             catch (Exception e)
             {
