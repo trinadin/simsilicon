@@ -42,6 +42,14 @@ namespace Simitone.Client
     ///     TS1QuickTips=false disarms (no popup after any dwell) and the
     ///     row's own production Toggle drives GlobalSettings.
     ///
+    /// (4) CAMERA (UI-39b) — on the mounted camera chrome: STR# 140's two
+    ///     group quick-tip popups ('Snapshot Sizes' [16]/[17] and 'Quality
+    ///     Settings' [18]/[19]) through UIOriginalCameraPanel.QuickTipProcess;
+    ///     the group ART resolves via the Res_*.h/RT -> FAR map (kCamPopupDetail
+    ///     0x455 / kCamPopupQualDetail 0x456 — cWinCamPanel::Init
+    ///     @0x266c2c/@0x266c38), the dwell-law arm/pump, hover-out dismiss,
+    ///     group retarget, and the OFF disarm.
+    ///
     /// Receipt: coordination/evidence/UI-39/quicktips-decode.md (+ port
     /// receipt in the same folder). Disasm: worktrees/ui39/tools/iff-dump/
     /// r266-quicktips/.
@@ -68,8 +76,9 @@ namespace Simitone.Client
             bool canon = CanonLeg(log);
             bool law = BinaryLawLeg(log);
             bool live = LiveLeg(log);
-            log("AUTOTEST ui39: canon=" + canon + " law=" + law + " live=" + live);
-            return canon && law && live;
+            bool cam = CamLiveLeg(log);
+            log("AUTOTEST ui39: canon=" + canon + " law=" + law + " live=" + live + " cam=" + cam);
+            return canon && law && live && cam;
         }
 
         // ------------------------------------------------------------------
@@ -327,6 +336,95 @@ namespace Simitone.Client
                     ? UI.Panels.UIMainPanelMode.LIVE : prevMode);
             }
             log("AUTOTEST ui39 live: " + (ok ? "OK" : "FAIL " + info));
+            return ok;
+        }
+
+        // ------------------------------------------------------------------
+        // UI-39b: the camera-panel Quick Tips surface (STR# 140 [16]/[17] +
+        // [18]/[19] group popups into the SAME cWinLivePopup presenter). The
+        // camera panel's own Update pump calls the same QuickTipProcess; the
+        // synthetic hover group + clock are the disclosed probe seam.
+        private static bool CamLiveLeg(Action<string> log)
+        {
+            var screen = FSO.Client.GameFacade.Screens?.CurrentUIScreen as UI.Screens.TS1GameScreen;
+            var mp = screen?.Frontend?.MainPanel;
+            if (mp == null) { log("AUTOTEST ui39 cam: no main panel"); return false; }
+            var prevMode = mp.Mode;
+            var set = FSO.Client.GlobalSettings.Default;
+            bool keepQuickTips = set.TS1QuickTips;
+            bool ok = true; string info = "";
+            try
+            {
+                mp.SetMode(UI.Panels.UIMainPanelMode.CAMERA);
+                var cam = mp.CameraChrome;
+                if (cam == null) { log("AUTOTEST ui39 cam: no camera chrome"); return false; }
+                set.TS1QuickTips = true;
+                cam.ClosePopup();
+                var snap = cam.SnapshotSizeTip;
+                var qual = cam.QualitySettingTip;
+                if (snap == null || qual == null) { ok = false; info += "groups;"; }
+                else
+                {
+                    // canon surface mapping: the camera panel's quick-tips are
+                    // the two GROUP popups, not the per-button one-liners.
+                    if (snap.Title != "Snapshot Sizes"
+                        || !snap.Body.StartsWith("Snapshots come in three sizes"))
+                    { ok = false; info += "snapCanon;"; }
+                    if (qual.Title != "Quality Settings"
+                        || !qual.Body.StartsWith("Choose low, medium, or high quality settings"))
+                    { ok = false; info += "qualCanon;"; }
+                    // the group art resolves through the Res_*.h/RT -> FAR map
+                    // (kCamPopupDetail 0x455 / kCamPopupQualDetail 0x456 —
+                    // cWinCamPanel::Init @0x266c2c/@0x266c38).
+                    if (snap.Member == null || snap.Art == null) { ok = false; info += "snapArt;"; }
+                    if (qual.Member == null || qual.Art == null) { ok = false; info += "qualArt;"; }
+                    // dwell law through the production pump (synthetic hover +
+                    // clock = the disclosed probe seam)
+                    cam.QuickTipProcess(snap, 1000);
+                    if (cam.CurrentPopup != null) { ok = false; info += "preDwell;"; }
+                    cam.QuickTipProcess(snap, 1249);
+                    if (cam.CurrentPopup != null) { ok = false; info += "dwell249;"; }
+                    cam.QuickTipProcess(snap, 1250);
+                    var pop = cam.CurrentPopup;
+                    if (pop == null || !ReferenceEquals(pop.Row, snap.Row) || cam.QuickTipOpenedGroup != snap)
+                    { ok = false; info += "dwell250;"; }
+                    else if (pop.Title != "Snapshot Sizes" || pop.Art != snap.Art
+                        || pop.Parent != cam.QuickTipOverlay
+                        || pop.Size.X != UI.Panels.LiveSubpanels.UIOptionAboutPopup.WindowWidth)
+                    { ok = false; info += "snapContent;"; }
+                    // hover-out dismiss (native 0x14 same-button DisablePopup)
+                    cam.QuickTipProcess(null, 1300);
+                    if (cam.CurrentPopup != null || cam.QuickTipOpenedGroup != null) { ok = false; info += "dismiss;"; }
+                    // quality group retarget through its own dwell
+                    cam.QuickTipProcess(qual, 2000);
+                    cam.QuickTipProcess(qual, 2250);
+                    pop = cam.CurrentPopup;
+                    if (pop == null || !ReferenceEquals(pop.Row, qual.Row)
+                        || pop.Title != "Quality Settings" || pop.Art != qual.Art)
+                    { ok = false; info += "qualRetarget;"; }
+                    cam.QuickTipProcess(null, 2300);
+                    // the option gate: OFF disarms (no popup after any dwell)
+                    set.TS1QuickTips = false;
+                    cam.QuickTipProcess(snap, 5000);
+                    cam.QuickTipProcess(snap, 20000);
+                    if (cam.CurrentPopup != null) { ok = false; info += "offDisarm;"; }
+                    set.TS1QuickTips = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                log("AUTOTEST ui39 cam EXC " + ex.GetType().Name + " " + ex.Message);
+                ok = false;
+            }
+            finally
+            {
+                try { mp.CameraChrome?.ClosePopup(); } catch { }
+                set.TS1QuickTips = keepQuickTips;
+                set.Save();
+                mp.SetMode(prevMode == UI.Panels.UIMainPanelMode.CAMERA
+                    ? UI.Panels.UIMainPanelMode.LIVE : prevMode);
+            }
+            log("AUTOTEST ui39 cam: " + (ok ? "OK" : "FAIL " + info));
             return ok;
         }
     }

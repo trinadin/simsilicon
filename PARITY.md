@@ -147,7 +147,19 @@ idiom + a bounded watchdog. TWO consecutive 156/0 batteries on merged main
   The TS1.0 discrete-cadence residual CLOSED: 200 ms/step, counter mod 4
   with slot-0 SKIP (visible cycle f1,f2,f3,skip — period 800 ms; the 2^52
   magic correction), mounted via the SkipSlots capability + gated. UI-38's
-  residual list is now EMPTY.**
+  residual list is now EMPTY.** The **Quick Tips presenter is CLOSED by UI-39
+  (2026-10-10)**: the TS1QuickTips hover-dwell help-popup layer on the original
+  options panel — native cOptionsMgr::SetQuickTips / cTSWinBtn arm+pump law,
+  the 250 ms dwell, the same-button toggle, and the live
+  `GlobalSettings.TS1QuickTips` gate; `ui39` gate in the default suite
+  (receipt evidence/UI-39/quicktips-decode.md). Its named bounded follow-up is
+  **CLOSED by UI-39b (2026-10-12)**: the camera-panel surface — the STR# 140
+  [16]/[17] 'Snapshot Sizes' + [18]/[19] 'Quality Settings' group popups with
+  the kCamPopupDetail/kCamPopupQualDetail (0x455/0x456) art, through the same
+  cWinLivePopup presenter (UIOptionAboutPopup); the eight camera button
+  one-liners remain tooltips (not popup triples). The remaining per-surface
+  registrations (People/subpanel/catalog/roof tip triples — presenter + law
+  now exist) stay enumerated on the UI-39 card.
 - ~~**Disclosed (visit-session park, 2026-10-08)**: away-lot visit sessions load in
   BUY mode + paused per the port's own NBR-06 native entry decode
   (`cSimsApp::LoadGame` visit → SetMode(BUY)+Pause) and the HUD panel re-parks
@@ -385,8 +397,9 @@ Product changes, by card:
   CharacterDetail (Vitaboy technique index), SimInBackground (focus-lost
   suspend/restore law), Shadows (WorldConfig.ObjShadows gate) are live-wired; the
   OPTIONS dummy category is DELETED (plaque hidden on every platform). The
-  remaining R121 rows are named BUILD follow-ups (Quick Tips presenter, Export
-  HTML at save, grass/TerrainDetail); Interface FX is CLOSED by UI-40 (the
+  remaining R121 rows are named BUILD follow-ups (**Quick Tips CLOSED by UI-39
+  2026-10-10 + camera-panel surface UI-39b 2026-10-12**, see the base-game
+  bullet above; Export HTML at save, grass/TerrainDetail); Interface FX is CLOSED by UI-40 (the
   mode-window SetPanel fades + dialog 128/255 translucency per
   coordination/evidence/UI-40/interfacefx-law.md; PIP-fade-only disclosure
   retired).

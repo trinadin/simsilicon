@@ -55,8 +55,9 @@ needs real-world testing on real Macs and real saves. That's where you come in:
   the neighbourhood layout montage, the UL filter toolbar, Superstar's fame
   surfaces and gendered job titles, Vacation's save-on-vacation/bookings and
   score/souvenir systems, Makin' Magic's quest lines, the near-screen-edge
-  audio rolloff + per-track channel attribution, the Quick Tips presenter,
-  and the Interface FX (BoboVision) mode-window fades are on decoded native
+  audio rolloff + per-track channel attribution, the Quick Tips presenter
+  (including the camera-panel surface — the Snapshot Sizes / Quality Settings
+  group popups), and the Interface FX (BoboVision) mode-window fades are on decoded native
   laws; the view-pie pop gesture stays a disclosed model (the original's
   window-manager vtable was not shipped — not statically recoverable). The
   vacation souvenir carry-home is live end-to-end for every stocked

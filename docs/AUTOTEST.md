@@ -70,6 +70,9 @@ dist). These run in the default suite; targeted runs need the corpus family
 - **`ui39`** — UI-39: the native Quick Tips presenter (250 ms hover-dwell
   cOptionsMgr::SetQuickTips law; gated by TS1QuickTips; OpenPopup same-button
   toggle + hover-out dismissal; tier-2 Product-built-button subtlety disclosed).
+  Also gates the UI-39b camera-panel surface (STR# 140 [16]/[17] 'Snapshot
+  Sizes' + [18]/[19] 'Quality Settings' group popups with the
+  kCamPopupDetail/kCamPopupQualDetail 0x455/0x456 art).
 - **`ui40`** — UI-40: the native Interface FX (BoboVision) window law — the
   mode-window SetPanel fades (333 ms linear ramps, FX-gated snap), options
   fade-in, reversal complements, and the dialog 128/255 fixed translucency
