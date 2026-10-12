@@ -34651,7 +34651,8 @@ namespace Simitone.Client
         private static int _eng3State; // 0 init, 1 idle-watch, 2 routed-watch, 99 done
         private static int _eng3Settle, _eng3Frame;
         private static VMAvatar _eng3Host;
-        private static int _eng3Total0, _eng3Flagged0, _eng3Members;
+        private static int _eng3Members;
+        private static long _eng3Total0, _eng3Flagged0;
         private static bool _eng3IdleFlagWaived; // autonomy routed during phase 1
 
         private static void Eng03Init()
@@ -39456,27 +39457,32 @@ namespace Simitone.Client
                     && yard(10000f) == 100;
                 math = math && yardLaw;
 
-                // ---- R136 + ORIG-02: the route-history Layout law —
-                // (int)(100.0*clamp(1f-2f*flagged/max(1,total),0,1)) with the
-                // RECOVERED seed N0=200 (FCNS 'fill value for layout
-                // history'): Clear reseeds BOTH counters to 200 — a fresh
-                // house scores 0 (200/200 -> ratio -1 -> clamp 0), not 100.
+                // ---- R136 + ORIG-02 + AUD-18-F: the six-generation
+                // route-history Layout law — (int)(100.0*clamp((SA-2*SB)/
+                // max(SA,1),0,1)) over the five seeded snapshot pairs (N0=200)
+                // + the live accumulator pair. Clear reseeds the snapshot pairs
+                // to 200 and zeroes the accumulator; a fresh house scores 0
+                // (SA=SB=5*200 -> ratio -1 -> clamp 0).
                 Simitone.Client.UI.Model.OriginalRouteHistory.Clear();
                 bool lawFresh = Simitone.Client.UI.Model.OriginalRouteHistory.LayoutScore == 0
-                    && Simitone.Client.UI.Model.OriginalRouteHistory.TotalSamples == 200;   // fresh house -> 0 (seed 200/200)
+                    && Simitone.Client.UI.Model.OriginalRouteHistory.SnapshotTotals[0] == 200
+                    && Simitone.Client.UI.Model.OriginalRouteHistory.TotalSamples == 0;   // snapshot pairs seeded, accumulator zeroed
+                // synthetic single-feed: clear the seeded snapshots so the law is
+                // tested on the accumulator alone (the engine formula is identical
+                // over any total; the seeded snapshots are a Clear() artifact).
+                for (int _i = 0; _i < 5; _i++) { Simitone.Client.UI.Model.OriginalRouteHistory.SnapshotTotals[_i] = 0; Simitone.Client.UI.Model.OriginalRouteHistory.SnapshotFlagged[_i] = 0; }
                 Simitone.Client.UI.Model.OriginalRouteHistory.TotalSamples = 10; Simitone.Client.UI.Model.OriginalRouteHistory.FlaggedSamples = 0;
-                bool lawSmooth = Simitone.Client.UI.Model.OriginalRouteHistory.LayoutScore == 100;           // all-smooth movement
+                bool lawSmooth = Simitone.Client.UI.Model.OriginalRouteHistory.LayoutScore == 100;           // (10-0)/10 = 1 -> 100
                 Simitone.Client.UI.Model.OriginalRouteHistory.FlaggedSamples = 2;
-                bool lawMix = Simitone.Client.UI.Model.OriginalRouteHistory.LayoutScore == 60;               // 100*(1-2*2/10)
+                bool lawMix = Simitone.Client.UI.Model.OriginalRouteHistory.LayoutScore == 60;               // (10-4)/10 = .6 -> 60
                 Simitone.Client.UI.Model.OriginalRouteHistory.FlaggedSamples = 5;
-                bool lawHalf = Simitone.Client.UI.Model.OriginalRouteHistory.LayoutScore == 0;               // 2*flagged==total
+                bool lawHalf = Simitone.Client.UI.Model.OriginalRouteHistory.LayoutScore == 0;               // (10-10)/10 = 0 -> 0
                 Simitone.Client.UI.Model.OriginalRouteHistory.FlaggedSamples = 8;
-                bool lawClamp = Simitone.Client.UI.Model.OriginalRouteHistory.LayoutScore == 0;              // clamped at 0
+                bool lawClamp = Simitone.Client.UI.Model.OriginalRouteHistory.LayoutScore == 0;              // (10-16)/10 = -.6 -> clamp 0
                 Simitone.Client.UI.Model.OriginalRouteHistory.TotalSamples = 0; Simitone.Client.UI.Model.OriginalRouteHistory.FlaggedSamples = 0;
-                bool lawGuard = Simitone.Client.UI.Model.OriginalRouteHistory.LayoutScore == 0;             // max(total,1) guard: 1-2*0/1 = 1... 0 flagged over guard = 100? flagged=0 -> ratio 1 -> 100
+                bool lawGuard = Simitone.Client.UI.Model.OriginalRouteHistory.LayoutScore == 100;            // all-zero feed: max(0,1)=1 guard, (1-0)/1 = 1 -> 100
                 Simitone.Client.UI.Model.OriginalRouteHistory.Clear();
-                bool lawReset = Simitone.Client.UI.Model.OriginalRouteHistory.LayoutScore == 0 && Simitone.Client.UI.Model.OriginalRouteHistory.TotalSamples == 200;
-                lawGuard = Simitone.Client.UI.Model.OriginalRouteHistory.LayoutScore == 0;                  // ORIG-02: guard with seed semantics = cleared state -> 0
+                bool lawReset = Simitone.Client.UI.Model.OriginalRouteHistory.LayoutScore == 0;             // Clear reseeds snapshots -> fresh 0
                 math = math && lawFresh && lawSmooth && lawMix && lawHalf
                     && lawClamp && lawGuard && lawReset;
 
@@ -39632,8 +39638,12 @@ namespace Simitone.Client
                             // the engine's [0,100] range.
                             Simitone.Client.UI.Model.OriginalRouteHistory.Sample(screen.vm);
                             hs.RecomputeStats();
-                            int expTot = System.Math.Max(1, Simitone.Client.UI.Model.OriginalRouteHistory.TotalSamples);
-                            float expRatio = 1f - (2f * Simitone.Client.UI.Model.OriginalRouteHistory.FlaggedSamples) / expTot;
+                            long expSA = Simitone.Client.UI.Model.OriginalRouteHistory.TotalSamples;
+                            long expSB = Simitone.Client.UI.Model.OriginalRouteHistory.FlaggedSamples;
+                            foreach (long t in Simitone.Client.UI.Model.OriginalRouteHistory.SnapshotTotals) expSA += t;
+                            foreach (long f in Simitone.Client.UI.Model.OriginalRouteHistory.SnapshotFlagged) expSB += f;
+                            if (expSA < 1) expSA = 1;
+                            float expRatio = (float)(expSA - 2 * expSB) / expSA;
                             if (expRatio < 0f) expRatio = 0f;
                             if (expRatio > 1f) expRatio = 1f;
                             int expLayout = (int)(100.0 * expRatio);
@@ -39651,8 +39661,8 @@ namespace Simitone.Client
                             if (Simitone.Client.UI.Model.OriginalRouteHistory.FlaggedSamples
                                 > Simitone.Client.UI.Model.OriginalRouteHistory.TotalSamples)
                             { ok = false; diag += "layout-flag-subset;"; }
-                            int t0 = Simitone.Client.UI.Model.OriginalRouteHistory.TotalSamples;
-                            int f0 = Simitone.Client.UI.Model.OriginalRouteHistory.FlaggedSamples;
+                            long t0 = Simitone.Client.UI.Model.OriginalRouteHistory.TotalSamples;
+                            long f0 = Simitone.Client.UI.Model.OriginalRouteHistory.FlaggedSamples;
                             Simitone.Client.UI.Model.OriginalRouteHistory.Sample(screen.vm);
                             if (Simitone.Client.UI.Model.OriginalRouteHistory.TotalSamples != t0
                                 || Simitone.Client.UI.Model.OriginalRouteHistory.FlaggedSamples != f0)

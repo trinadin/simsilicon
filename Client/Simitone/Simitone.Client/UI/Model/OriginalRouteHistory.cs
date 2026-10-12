@@ -70,15 +70,30 @@ namespace Simitone.Client.UI.Model
     ///     every 10th per-person tick; the score normalizes by the total,
     ///     so the ratio is cadence-invariant (disclosed; unchanged from
     ///     R137).
-    ///   * the seed N0 is unrecoverable; the port normalizes by the total
-    ///     (the engine's own guarded sum):
-    ///     LayoutScore = (int)(100.0 * clamp(1f - 2f*flagged/max(1,total), 0, 1)).
+    ///   * MULTI-GENERATION MODEL (closes the r136/orig-02 r136 disclosure):
+    ///     the six-generation layout (five snapshot pairs + live accumulator)
+    ///     with the EnterLiveMode rotation is implemented — the seed N0 = 200
+    ///     (ORIG-02, recovered) reseeds the snapshot pairs and the accumulator
+    ///     zeroes, and RotateLive() ages generations on LIVE entry, so the
+    ///     post-renovation transient matches the engine instead of decaying by
+    ///     the disclosed single-generation stand-in. LOS:
+    ///     LayoutScore = (int)(100.0 * clamp((SA - 2*SB)/max(SA,1), 0, 1)).
     ///   * ClearRouteHistory = the port's WallsChanged (renovation) signal.
     /// </summary>
     public static class OriginalRouteHistory
     {
-        public static int TotalSamples;    // the +88 lineage (population samples)
-        public static int FlaggedSamples;  // the +92 lineage (in-motion samples)
+        // Six (total, flagged) generations (r136 §1, AUD-18-F corrected): the
+        // five SNAPSHOT pairs (House+48..+84) retain seeded/aged history and the
+        // live ACCUMULATOR pair (+88/+92) grows in-session. The engine rotates on
+        // EnterLiveMode case 220 (0x8c8d4): the accumulator pair is pushed into the
+        // newest history slot, the others age, and the accumulator zeroes.
+        // The port keeps TotalSamples/FlaggedSamples as the ACCUMULATOR accessors
+        // (the eng03flag live counters + the uihouse synthetic feeds read them).
+        public static readonly long[] SnapshotTotals = new long[5];
+        public static readonly long[] SnapshotFlagged = new long[5];
+        private static long TotalAcc, FlaggedAcc;
+        public static long TotalSamples { get => TotalAcc; set => TotalAcc = value; }
+        public static long FlaggedSamples { get => FlaggedAcc; set => FlaggedAcc = value; }
         // AUD-17 E-2: the old `static bool Wired` latched on the FIRST VM —
         // every lot change disposes that VM (TS1GameScreen.CleanupLastWorld),
         // so from lot 2 onward WallsChanged was never wired and the static
@@ -122,7 +137,8 @@ namespace Simitone.Client.UI.Model
         /// <summary>
         /// One sampling pass over the family: each live, awake family-member
         /// Sim is one sample (AddLayoutTick's population channel); the flag
-        /// marks Sims currently holding a route.
+        /// marks Sims currently holding a route. Samples grow the live
+        /// accumulator pair (the engine's H88/H92).
         /// </summary>
         public static void Sample(FSO.SimAntics.VM vm)
         {
@@ -145,46 +161,70 @@ namespace Simitone.Client.UI.Model
                 // the verified awake gate: Motive[11] (SleepState) >= 0
                 try { if (av.GetMotiveData(FSO.SimAntics.Model.VMMotive.SleepState) < 0) continue; }
                 catch { continue; }
-                TotalSamples++;
-                if (HoldsRoute(av)) FlaggedSamples++;
+                TotalAcc++;
+                if (HoldsRoute(av)) FlaggedAcc++;
             }
         }
 
         /// <summary>
-        /// The decoded Layout law with the disclosed total normalization:
-        /// ratio in f32 (the engine's fdivs), the x100 scale in f64 (its
-        /// fmul against the [TOC-23516]+16 = 100.0 pool double), then
-        /// fctiwz truncation.
+        /// The decoded Layout law over all six generations (GetHouseStats tail
+        /// AUD-18-F): (int)(100.0 * clamp((SA - 2*SB)/max(SA,1), 0, 1)) with
+        /// SA/SB the int->double sums (properly XORed in the engine); the f32
+        /// ratio, f64 100.0 scale and fctiwz truncation are reproduced by the
+        /// cast. CODE CLOSES the r136 disclosure: the port no longer uses the
+        /// single-generation total-normalized approximation.
         /// </summary>
         public static int LayoutScore
         {
             get
             {
-                // ORIG-02: the seed N0 is RECOVERED = 200 (FCNS 'fill value
-                // for layout history'; writer NeighborhoodConstants::
-                // UpdateConstants) — a fresh/cleared house carries
-                // flagged=200, total=200 -> ratio = 1-2 = -1 -> clamp 0:
-                // the native fresh-house LayoutScore is 0, not 100.
-                int total = TotalSamples;
-                if (total < 1) total = 1; // the engine's max(sum, 1) guard
-                float ratio = 1f - (2f * FlaggedSamples) / total;
+                long sa = TotalAcc, sb = FlaggedAcc;
+                for (int i = 0; i < SnapshotTotals.Length; i++)
+                {
+                    sa += SnapshotTotals[i];
+                    sb += SnapshotFlagged[i];
+                }
+                if (sa < 1) sa = 1; // the engine's max(sum,1) division guard
+                float ratio = (float)(sa - 2 * sb) / sa;
                 if (ratio < 0f) ratio = 0f;
                 if (ratio > 1f) ratio = 1f;
                 return (int)(100.0 * ratio);
             }
         }
 
-        /// <summary>ClearRouteHistory — the renovation reset. The native
-        /// (0x100835a0) seeds the ten SNAPSHOT counters to N0 = 200 and
-        /// zeroes the accumulator pair; the port's single accumulator pair
-        /// takes the seed 200/200 so the fresh ratio is -1 either way
-        /// (5*200 both sides natively vs 200/200 here — the disclosed
-        /// single-generation model; the post-clear recovery transient
-        /// differs, the fresh score 0 and the long-run ratio do not).</summary>
+        /// <summary>ClearRouteHistory — the renovation/rebuild reset. Native
+        /// (image 0x100835a0; AUD-18-F instruction-verified) reseeds the TEN
+        /// snapshot counters (five total + five flagged) to N0 = 200 and ZEROES
+        /// the accumulator pair (stw r4=0 at 0x10083620/24). The fresh-house
+        /// outcome is SA = SB = 5*200 -> ratio -1 -> score 0.</summary>
         public static void Clear()
         {
-            TotalSamples = 200;
-            FlaggedSamples = 200;
+            for (int i = 0; i < SnapshotTotals.Length; i++)
+            {
+                SnapshotTotals[i] = 200;
+                SnapshotFlagged[i] = 200;
+            }
+            TotalAcc = 0;
+            FlaggedAcc = 0;
+        }
+
+        /// <summary>EnterLiveMode case 220 rotation (0x8c8d4): the accumulator
+        /// pair is pushed into the newest history slot, the four older slots
+        /// age (the oldest is dropped), and the accumulator zeroes. This is the
+        /// native rolling-window semantics the r136 note banked as runtime-only;
+        /// calling it on LIVE mode entry makes the post-renovation transient
+        /// match the engine instead of the single-generation stand-in.</summary>
+        public static void RotateLive()
+        {
+            for (int i = 0; i < SnapshotTotals.Length - 1; i++)
+            {
+                SnapshotTotals[i] = SnapshotTotals[i + 1];
+                SnapshotFlagged[i] = SnapshotFlagged[i + 1];
+            }
+            SnapshotTotals[SnapshotTotals.Length - 1] = TotalAcc;
+            SnapshotFlagged[SnapshotFlagged.Length - 1] = FlaggedAcc;
+            TotalAcc = 0;
+            FlaggedAcc = 0;
         }
 
         private static void Wire(FSO.SimAntics.VM vm)

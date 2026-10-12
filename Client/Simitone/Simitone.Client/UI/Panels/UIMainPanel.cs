@@ -612,6 +612,12 @@ namespace Simitone.Client.UI.Panels
         public void SetMode(UIMainPanelMode mode)
         {
             if (mode == Mode) return;
+            // R136 + ORIG-02 + AUD-18-F: the native EnterLiveMode case 220
+            // rotation — entering LIVE ages the layout-history generations
+            // (OriginalRouteHistory). Only on an actual LIVE transition (the
+            // guard above already ensures mode != Mode).
+            if (mode == UIMainPanelMode.LIVE)
+                Simitone.Client.UI.Model.OriginalRouteHistory.RotateLive();
             // UI-22: native CPState::SetMode law (tools/iff-dump/r256-undo-decode/
             // §5, old-mode==2 guard) — LEAVING BUILD MODE CLEARS the architecture
             // undo/redo history. Saving does not (the stack is runtime-only).
