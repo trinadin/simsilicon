@@ -215,6 +215,22 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
         public UIOriginalZodiacButton ZodiacButton;
         public UIOriginalText[] NameTwins;
         public UIOptionAboutPopup CurrentPopup;
+
+        // ---- UI-39 per-surface: native hover-dwell Quick Tips layer ----
+        // (cWinPeople personality surface). Law: coordination/evidence/UI-39/
+        // quicktips-decode.md. A trait row's tip is its existing About popup
+        // (Rows[index].TierName / TierDescription, the ToggleTraitPopup law).
+        // Hover-dwell 250ms while TS1QuickTips is ON opens that About popup
+        // without changing the click toggle; hovering out dismisses a
+        // hover-opened popup (0x13/0x14). Click-opened popups are untouched.
+        // The secondary zodiac button keeps its own click toggle (bounded).
+        public const int QuickTipDwellMs = 250;              // native ON dwell (0xfa)
+        private int _qtHovered = -1;                          // native +0x164 arm state (row index)
+        private int _qtStart;                                  // arm timestamp (timeGetTime stand-in)
+        private bool _qtFired;
+        private bool _qtOpenByHover;                           // popup opened by a dwell hover
+        private static readonly Func<int> QuickTipClock = () => Environment.TickCount;
+        private bool QuickTipsEnabled => GlobalSettings.Default.TS1QuickTips;
         public int PopupTrait = -1;
         public bool PopupIsZodiac;
         public static int TraitNamesTwinned;
@@ -327,7 +343,19 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
                 if (Rows != null) UpdateDesktop(sel);
                 else UpdateMobile(sel);
             }
+            QuickTipProcess(QuickTipHitTest(state), QuickTipClock());
             base.Update(state);
+            // Native TSOnMouseExit (0x14): leaving the panel closes a
+            // hover-opened quick-tip popup; click-opened popups are untouched.
+            if (_qtOpenByHover && CurrentPopup != null)
+            {
+                var mouse = GetMousePosition(state.MouseState);
+                if (mouse.X < 0 || mouse.Y < 0 || mouse.X >= Size.X || mouse.Y >= Size.Y)
+                {
+                    ClosePopup();
+                    _qtOpenByHover = false;
+                }
+            }
         }
 
         private void UpdateDesktop(FSO.SimAntics.VMAvatar sel)
@@ -539,6 +567,77 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
                 }
             }
             for (int i = 0; i < 5; i++) MobileSkills[i].Value = sel.GetPersonData(TraitData[i]) / 100;
+        }
+
+        /// Production hit test: the personality trait row under the mouse
+        /// (native trait rows arm on hover).
+        private int QuickTipHitTest(UpdateState state)
+        {
+            if (Rows != null)
+                for (int i = 0; i < Rows.Length; i++)
+                    if (HoverOver(Rows[i], state)) return i;
+            return -1;
+        }
+
+        private static bool HoverOver(UIElement e, UpdateState state)
+        {
+            if (e == null || !e.WillDraw()) return false;
+            var p = e.GetMousePosition(state.MouseState);
+            var s = e.Size;
+            return p.X >= 0 && p.Y >= 0 && p.X < s.X && p.Y < s.Y;
+        }
+
+        /// The dwell pump; mirrors UIOriginalCameraPanel.QuickTipProcess so the
+        /// UI-39 gate's synthetic-hover seam can drive it identically.
+        private void QuickTipProcess(int hovered, int now)
+        {
+            if (hovered != _qtHovered)
+            {
+                // Leaving an armed hover row closes a hover-opened popup (0x14).
+                if (_qtOpenByHover)
+                {
+                    ClosePopup();
+                    _qtOpenByHover = false;
+                }
+                _qtHovered = hovered;
+                _qtStart = now;
+                _qtFired = false;
+                return;
+            }
+            if (_qtHovered < 0 || _qtFired) return;
+            if (!QuickTipsEnabled) return;   // native OFF: buttons disarmed
+            if (now - _qtStart >= QuickTipDwellMs)
+            {
+                _qtFired = true;             // native clears the arm after firing
+                OpenTraitQuickTip(_qtHovered);   // 0x13: same triple, same window
+                _qtOpenByHover = true;
+            }
+        }
+
+        /// Open/retarget a trait row's About popup for hover WITHOUT the click
+        /// toggle (native same-button 0x13 refire retargets; click keeps its
+        /// own ToggleTraitPopup behavior).
+        private void OpenTraitQuickTip(int index)
+        {
+            if (index < 0 || index >= (Rows?.Length ?? 0)) return;
+            if (CurrentPopup != null && !PopupIsZodiac && PopupTrait == index) return;
+            Texture2D portrait = null;
+            try { portrait = UIIconCache.GetObject(Game.SelectedAvatar); } catch { }
+            var row = new UIOriginalOptionsPanel.OptRow
+            {
+                AboutTitle = Rows[index].TierName,
+                AboutBody = Rows[index].TierDescription
+            };
+            if (CurrentPopup == null)
+            {
+                CurrentPopup = new UIOptionAboutPopup(null, row, portrait);
+                DynamicOverlay.Add(CurrentPopup);
+            }
+            else CurrentPopup.SetContent(row.AboutTitle, row.AboutBody);
+            CurrentPopup.SetArt(portrait, PortraitCrop(portrait), true);
+            PopupTrait = index;
+            PopupIsZodiac = false;
+            PositionPopup();
         }
     }
 }
