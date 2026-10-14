@@ -1,5 +1,6 @@
-﻿using FSO.Client;
+using FSO.Client;
 using FSO.Client.UI.Controls;
+using FSO.Client.UI.Framework;
 using FSO.SimAntics.Model;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -72,6 +73,21 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
         public UIOriginalText HostTitle;
         public UIOptionAboutPopup CurrentPopup;
         public int PopupMotive = -1;
+
+        // ---- UI-39 per-surface: native hover-dwell Quick Tips layer ----
+        // (cWinPeople motive surface). Law: coordination/evidence/UI-39/
+        // quicktips-decode.md. A gauge's tip is its existing About popup (the
+        // gauge label/tooltip ToggleMotivePopup uses). Hover-dwell 250ms while
+        // TS1QuickTips is ON opens that About popup without changing the click
+        // toggle; hovering out dismisses a hover-opened popup (0x13/0x14).
+        // Click-opened popups are untouched.
+        public const int QuickTipDwellMs = 250;              // native ON dwell (0xfa)
+        private int _qtHovered = -1;                          // native +0x164 arm state (gauge index)
+        private int _qtStart;                                  // arm timestamp (timeGetTime stand-in)
+        private bool _qtFired;
+        private bool _qtOpenByHover;                           // popup opened by a dwell hover
+        private static readonly Func<int> QuickTipClock = () => Environment.TickCount;
+        private bool QuickTipsEnabled => GlobalSettings.Default.TS1QuickTips;
         // R187: cWinPeople's static constructor writes these exact selector
         // pairs to BSS 0x93390 (human) and 0x93310 (pet). cWinMotive passes
         // each pair to its cWinLivePopupClient in gauge-grid order. A zero pair
@@ -312,7 +328,19 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
             }
             UpdateMotives();
             if (TrackButton != null) TrackButton.TrackActive = IsTracking;
+            QuickTipProcess(QuickTipHitTest(state), QuickTipClock());
             base.Update(state);
+            // Native TSOnMouseExit (0x14): leaving the panel closes a
+            // hover-opened quick-tip popup; click-opened popups are untouched.
+            if (_qtOpenByHover && CurrentPopup != null)
+            {
+                var mouse = GetMousePosition(state.MouseState);
+                if (mouse.X < 0 || mouse.Y < 0 || mouse.X >= Size.X || mouse.Y >= Size.Y)
+                {
+                    CloseMotivePopup();
+                    _qtOpenByHover = false;
+                }
+            }
             if (GaugeGrid == null && Opacity < 1)
             {
                 if (DynamicOverlay.GetChildren().Count > 0)
@@ -529,6 +557,77 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
             var anchor = av.WorldUI as FSO.LotView.Components.AvatarComponent;
             if (world.State.ScrollAnchor == anchor) world.State.ScrollAnchor = null;
             else world.State.ScrollAnchor = anchor;
+        }
+
+        /// Production hit test: the motive gauge under the mouse (native gauges
+        /// arm on hover).
+        private int QuickTipHitTest(UpdateState state)
+        {
+            if (GaugeGrid == null) return -1;
+            for (int i = 0; i < GaugeGrid.Length; i++)
+                if (HoverOver(GaugeGrid[i], state)) return i;
+            return -1;
+        }
+
+        private static bool HoverOver(UIElement e, UpdateState state)
+        {
+            if (e == null || !e.WillDraw()) return false;
+            var p = e.GetMousePosition(state.MouseState);
+            var s = e.Size;
+            return p.X >= 0 && p.Y >= 0 && p.X < s.X && p.Y < s.Y;
+        }
+
+        /// The dwell pump; mirrors UIOriginalCameraPanel.QuickTipProcess so the
+        /// UI-39 gate's synthetic-hover seam can drive it identically.
+        private void QuickTipProcess(int hovered, int now)
+        {
+            if (hovered != _qtHovered)
+            {
+                // Leaving an armed hover gauge closes a hover-opened popup (0x14).
+                if (_qtOpenByHover)
+                {
+                    CloseMotivePopup();
+                    _qtOpenByHover = false;
+                }
+                _qtHovered = hovered;
+                _qtStart = now;
+                _qtFired = false;
+                return;
+            }
+            if (_qtHovered < 0 || _qtFired) return;
+            if (!QuickTipsEnabled) return;   // native OFF: buttons disarmed
+            if (now - _qtStart >= QuickTipDwellMs)
+            {
+                _qtFired = true;             // native clears the arm after firing
+                OpenMotiveQuickTip(_qtHovered);   // 0x13: same triple, same window
+                _qtOpenByHover = true;
+            }
+        }
+
+        /// Open/retarget a gauge's About popup for hover WITHOUT the click
+        /// toggle (native same-button 0x13 refire retargets; click keeps its
+        /// own ToggleMotivePopup behavior).
+        private void OpenMotiveQuickTip(int index)
+        {
+            if (CurrentPopup != null && PopupMotive == index) return;
+            if (!Game.Desktop || GaugeGrid == null || index < 0 || index >= GaugeGrid.Length)
+                return;
+            var gauge = GaugeGrid[index];
+            var title = gauge?.Label?.Text ?? "";
+            var body = gauge?.Tooltip ?? "";
+            if (CurrentPopup == null)
+            {
+                var row = new UIOriginalOptionsPanel.OptRow
+                {
+                    AboutTitle = title,
+                    AboutBody = body
+                };
+                CurrentPopup = new UIOptionAboutPopup(null, row, null);
+                DynamicOverlay.Add(CurrentPopup);
+            }
+            PopupMotive = index;
+            ApplyMotivePopupContent(index, title, body);
+            PositionPopup();
         }
     }
 }

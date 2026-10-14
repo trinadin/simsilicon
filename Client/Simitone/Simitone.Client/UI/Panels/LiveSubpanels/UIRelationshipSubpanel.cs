@@ -1,4 +1,4 @@
-﻿using FSO.Client;
+using FSO.Client;
 using FSO.Client.UI.Controls;
 using FSO.Client.UI.Framework;
 using FSO.Common.Rendering.Framework.IO;
@@ -63,6 +63,22 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
         public UIContainer CardLayer;
         public UIOptionAboutPopup CurrentPopup;
         public UIRelationshipDisplay PopupCard;
+
+        // ---- UI-39 per-surface: native hover-dwell Quick Tips layer ----
+        // (cWinPeople relationship surface). Law:
+        // coordination/evidence/UI-39/quicktips-decode.md. A relationship
+        // card's tip is its existing About popup (STR# 132 [1]/[2] content,
+        // the same SelectRelationship builds). Hover-dwell 250ms while
+        // TS1QuickTips is ON opens that About popup without changing the
+        // click/selection behavior; hovering out dismisses a hover-opened
+        // popup (native 0x13/0x14). Click-opened popups are untouched.
+        public const int QuickTipDwellMs = 250;              // native ON dwell (0xfa)
+        private UIRelationshipDisplay _qtHovered;            // native +0x164 arm state
+        private int _qtStart;                                  // arm timestamp (timeGetTime stand-in)
+        private bool _qtFired;
+        private bool _qtOpenByHover;                           // popup opened by a dwell hover
+        private static readonly Func<int> QuickTipClock = () => Environment.TickCount;
+        private bool QuickTipsEnabled => GlobalSettings.Default.TS1QuickTips;
 
         public static int OriginalSortsMounted;
 
@@ -294,7 +310,19 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
         public override void Update(UpdateState state)
         {
             UpdateRelView();
+            QuickTipProcess(QuickTipHitTest(state), QuickTipClock());
             base.Update(state);
+            // Native TSOnMouseExit (0x14): leaving the panel closes a
+            // hover-opened quick-tip popup; click-opened popups are untouched.
+            if (_qtOpenByHover && CurrentPopup != null)
+            {
+                var mouse = GetMousePosition(state.MouseState);
+                if (mouse.X < 0 || mouse.Y < 0 || mouse.X >= Size.X || mouse.Y >= Size.Y)
+                {
+                    CloseRelationshipPopup();
+                    _qtOpenByHover = false;
+                }
+            }
         }
 
         public override void GameResized()
@@ -567,6 +595,84 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
         {
             CloseRelationshipPopup();
             base.Kill();
+        }
+
+        /// Production hit test: the relationship card under the mouse (native
+        /// card buttons arm on hover).
+        private UIRelationshipDisplay QuickTipHitTest(UpdateState state)
+        {
+            foreach (var c in Cards)
+                if (HoverOver(c, state)) return c;
+            return null;
+        }
+
+        private static bool HoverOver(UIElement e, UpdateState state)
+        {
+            if (e == null || !e.WillDraw()) return false;
+            var p = e.GetMousePosition(state.MouseState);
+            var s = e.Size;
+            return p.X >= 0 && p.Y >= 0 && p.X < s.X && p.Y < s.Y;
+        }
+
+        /// The dwell pump; mirrors UIOriginalCameraPanel.QuickTipProcess so the
+        /// UI-39 gate's synthetic-hover seam can drive it identically.
+        private void QuickTipProcess(UIRelationshipDisplay hovered, int now)
+        {
+            if (!ReferenceEquals(hovered, _qtHovered))
+            {
+                // Leaving an armed hover site closes a hover-opened popup (0x14).
+                if (_qtOpenByHover)
+                {
+                    CloseRelationshipPopup();
+                    _qtOpenByHover = false;
+                }
+                _qtHovered = hovered;
+                _qtStart = now;
+                _qtFired = false;
+                return;
+            }
+            if (_qtHovered == null || _qtFired) return;
+            if (!QuickTipsEnabled) return;   // native OFF: buttons disarmed
+            if (now - _qtStart >= QuickTipDwellMs)
+            {
+                _qtFired = true;             // native clears the arm after firing
+                OpenRelationshipQuickTip(_qtHovered);   // 0x13: same triple, same window
+                _qtOpenByHover = true;
+            }
+        }
+
+        /// Open/retarget the About popup for a hovered card WITHOUT the click
+        /// toggle (native same-button 0x13 refire retargets; click keeps its
+        /// own SelectRelationship toggle behavior).
+        private void OpenRelationshipQuickTip(UIRelationshipDisplay card)
+        {
+            var title = OriginalLiveStrings.Entry(132, 1) ?? POPUP_TITLE_FALLBACK;
+            var body = RelationshipPopupBody(card.NeighborID);
+            if (CurrentPopup != null)
+            {
+                CurrentPopup.SetContent(title, body);
+                CurrentPopup.Position = new Vector2(Size.X - CurrentPopup.Size.X,
+                    -CurrentPopup.Size.Y);
+                CurrentPopup.CanonPos = new Point((int)CurrentPopup.X, (int)CurrentPopup.Y);
+                PopupCard = card;
+                return;
+            }
+
+            var row = new UIOriginalOptionsPanel.OptRow
+            {
+                Caption = card.Tooltip,
+                AboutTitle = title,
+                AboutBody = body,
+                PopupMember = POPUP_MEMBER
+            };
+            var artRef = UIOriginal.EnsureResolved(POPUP_MEMBER);
+            CurrentPopup = new UIOptionAboutPopup(null, row,
+                artRef != null ? artRef.Get(GameFacade.GraphicsDevice) : null);
+            CurrentPopup.Position = new Vector2(Size.X - CurrentPopup.Size.X,
+                -CurrentPopup.Size.Y);
+            CurrentPopup.CanonPos = new Point((int)CurrentPopup.X, (int)CurrentPopup.Y);
+            PopupCard = card;
+            DynamicOverlay.Add(CurrentPopup);
         }
     }
 
