@@ -100,6 +100,23 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
         public int SelectedItem = -1;
         public int PopupItem = -1;
 
+        // ---- UI-39 per-surface: native hover-dwell Quick Tips layer ----
+        // (cWinSubpanelHouse). Law: coordination/evidence/UI-39/quicktips-decode.md.
+        // Each House row's tip triple is its existing STR# 135 [index*2]/
+        // [index*2+1] About pair (the exact content OpenPopup already ports).
+        // Hover-dwell 250ms while TS1QuickTips is ON shows that About popup
+        // without changing the selected score (native cmd 0x13); hovering out
+        // dismisses a hover-opened popup (0x14). Click-opened popups keep the
+        // existing SelectItem behavior (native has one window and no click/hover
+        // distinction, disclosed).
+        public const int QuickTipDwellMs = 250;              // native ON dwell (0xfa)
+        private int? _qtHovered;                             // native +0x164 arm state (button index)
+        private int _qtStart;                                  // arm timestamp (timeGetTime stand-in)
+        private bool _qtFired;
+        private int? _qtOpenByHover;                           // popup opened by a dwell hover
+        private static readonly Func<int> QuickTipClock = () => Environment.TickCount;
+        private bool QuickTipsEnabled => GlobalSettings.Default.TS1QuickTips;
+
         public OriginalHouseStats.Result Stats;
 
         public UIHouseSubpanel(TS1GameScreen game) : base(game)
@@ -183,7 +200,21 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
             // Native calls House::GetHouseStats every paint. Recompute every
             // update so construction/renovation is reflected without a lag.
             RecomputeStats();
+            QuickTipProcess(QuickTipHitTest(state), QuickTipClock());
             base.Update(state);
+            // Native TSOnMouseExit (0x14): leaving the panel closes a
+            // hover-opened quick-tip popup; click-opened popups are untouched.
+            if (_qtOpenByHover.HasValue && CurrentPopup != null)
+            {
+                var mouse = GetMousePosition(state.MouseState);
+                if (mouse.X < 0 || mouse.Y < 0 || mouse.X >= Size.X || mouse.Y >= Size.Y)
+                {
+                    DynamicOverlay.Remove(CurrentPopup);
+                    CurrentPopup = null;
+                    PopupItem = -1;
+                    _qtOpenByHover = null;
+                }
+            }
         }
 
         public void RecomputeStats()
@@ -276,6 +307,54 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
             }
             PopupItem = -1;
             base.Kill();
+        }
+
+        /// Production hit test: the House text-button under the mouse (native
+        /// buttons arm on hover; score indices 0-4, fact indices 5-8).
+        private int? QuickTipHitTest(UpdateState state)
+        {
+            for (int i = 0; i < ScoreButtons.Length; i++)
+                if (HoverOver(ScoreButtons[i], state)) return i;
+            for (int i = 0; i < FactButtons.Length; i++)
+                if (HoverOver(FactButtons[i], state)) return 5 + i;
+            return null;
+        }
+
+        private static bool HoverOver(UIElement e, UpdateState state)
+        {
+            if (e == null || !e.WillDraw()) return false;
+            var p = e.GetMousePosition(state.MouseState);
+            var s = e.Size;
+            return p.X >= 0 && p.Y >= 0 && p.X < s.X && p.Y < s.Y;
+        }
+
+        /// The dwell pump; mirrors UIOriginalCameraPanel.QuickTipProcess so the
+        /// UI-39 gate's synthetic-hover seam can drive it identically.
+        private void QuickTipProcess(int? hovered, int now)
+        {
+            if (hovered != _qtHovered)
+            {
+                // Leaving an armed hover site closes a hover-opened popup (0x14).
+                if (_qtOpenByHover.HasValue && CurrentPopup != null)
+                {
+                    DynamicOverlay.Remove(CurrentPopup);
+                    CurrentPopup = null;
+                    PopupItem = -1;
+                }
+                _qtOpenByHover = null;
+                _qtHovered = hovered;
+                _qtStart = now;
+                _qtFired = false;
+                return;
+            }
+            if (_qtHovered == null || _qtFired) return;
+            if (!QuickTipsEnabled) return;   // native OFF: buttons disarmed
+            if (now - _qtStart >= QuickTipDwellMs)
+            {
+                _qtFired = true;             // native clears the arm after firing
+                OpenPopup(_qtHovered.Value); // 0x13: same triple, same window
+                _qtOpenByHover = _qtHovered;
+            }
         }
     }
 }
