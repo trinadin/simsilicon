@@ -121,9 +121,10 @@ namespace Simitone.Client
                     case 3: PhaseVenueQuiet(); break;
                     case 4: PhaseVenueVacation(); break;
                     case 5: PhaseVenueMagic(); break;
-                    case 6: PhaseZoneChoice(); break;       // NBR-08
-                    case 7: PhaseBulldozeSounds(); break;   // NBR-08
-                    case 8: PhaseRestore(); break;
+                    case 6: PhaseVenueMagicVacation(); break; // NBR-07 [16]/[17] pre-scan
+                    case 7: PhaseZoneChoice(); break;       // NBR-08
+                    case 8: PhaseBulldozeSounds(); break;   // NBR-08
+                    case 9: PhaseRestore(); break;
                     default:
                         _done = true;
                         break;
@@ -497,7 +498,7 @@ namespace Simitone.Client
             // cWinMagicland @0x5840d0: the occupied leg keeps the UL net-worth
             // confirm ([2]/[3]) but the built sub-confirm is the VENUE [14]/[15]
             // pair. (The [16]/[17] home-family-on-vacation pre-scan refusal is
-            // unreachable port-side — no vacation state; decode-banked.)
+            // pinned in PhaseVenueMagicVacation via FAMI.VacationHouseNumber.)
             var fam = N.GetFamily(4);
             Check(fam != null, "family-4-found-magic");
             if (fam == null) { _done = true; return; }
@@ -534,6 +535,61 @@ namespace Simitone.Client
             Check(N.GetFamilyForHouse(3) == null, "magic-evict-unbound-family");
             var receipt = BulldozeDialogButton(UIAlertButtonType.OK);
             if (receipt != null) Press(receipt);   // the evict receipt
+            DisarmAll();
+            Panel.SetViewModeForProbe(4);
+            if (!_passed) { _done = true; return; }
+            Next();
+        }
+
+        private void PhaseVenueMagicVacation()
+        {
+            // NBR-07 Magic PRE-SCAN (cWinMagicland::EvictModeLotHandler
+            // 0x584130-0x5841a4): BEFORE the UL [2]/[3] confirm the handler
+            // refuses the eviction if any family whose home is THIS lot is
+            // currently away on vacation (native Family+0x13C =
+            // FAMI.VacationHouseNumber != 0) — the STR# 131 [16]/[17] dialog
+            // ("Not So Fast!" / "This family is currently on vacation. Strict
+            // laws forbid evictions…"), no sound, no executor. The port's
+            // vacation state is FAMI.VacationHouseNumber (TRV-05), so the leg
+            // is now reachable. Phase probes: refusal mounted with the exact
+            // strings, no executor ran, and the lot's home family is untouched
+            // until the phase restore unbinds it (lot 3 must be vacant for the
+            // later sound/rezone phases).
+            var fam = N.GetFamily(4);
+            Check(fam != null, "vacref-family-4-found");
+            if (fam == null) { _done = true; return; }
+            Check(N.GetFamilyForHouse(3) == null, "vacref-lot3-vacant-before");
+            fam.VacationHouseNumber = 41;                 // away-on-vacation booking
+            N.SetFamilyForHouse(3, fam, false);           // home lot = 3
+            var refusals0 = Screen.MagicVacationRefusalsForProbe;
+            var ev0 = Screen.ArmedEvictsForProbe;
+
+            Panel.SetViewModeForProbe(7);   // Magic Town
+            ArmBulldoze();
+            Panel.SelectHouse(3);
+            var refusal = Screen._bulldozeDialog;
+            Check(refusal != null, "vacref-refusal-dialog-mounted");
+            if (refusal != null)
+            {
+                Check(refusal.TitleTextForProbe == "Not So Fast!", "vacref-refusal-title-131-17");
+                Check((refusal.MessageTextForProbe ?? "").StartsWith("This family is currently on vacation."),
+                    "vacref-refusal-message-131-16");
+            }
+            Check(Screen.MagicVacationRefusalsForProbe == refusals0 + 1, "vacref-refusal-counted");
+            Check(Screen.ArmedEvictsForProbe == ev0, "vacref-refusal-no-executor");
+            var ok = BulldozeDialogButton(UIAlertButtonType.OK);
+            if (ok != null) Press(ok);   // dismiss the refusal
+
+            // The refusal never evicted: the home family is still bound.
+            Check(N.GetFamilyForHouse(3) == fam, "vacref-family-still-home-after-refusal");
+
+            // Restore: clear the booking and unbind lot 3 (MoveOut keeps the
+            // house) so the later phases see it vacant+built, exactly as the
+            // prior PhaseVenueMagic left it.
+            fam.VacationHouseNumber = 0;
+            if (N.MoveOut(3, false) == 1) N.SaveNeighbourhood(false);
+            Check(N.GetFamilyForHouse(3) == null, "vacref-lot3-vacant-after");
+
             DisarmAll();
             Panel.SetViewModeForProbe(4);
             if (!_passed) { _done = true; return; }
@@ -732,7 +788,7 @@ namespace Simitone.Client
             Check(!Switcher.BulldozeArmed && !Switcher.RezoneArmed, "ends-disarmed");
             Check(Panel.CurrentViewMode == 4, "view-mode-restored-to-base");
             Check(N.GetZoningType(11) == 0, "zone-choice-leg-zone-restored");
-            _notes.Add("summary: venues=DT/ST-occupied-noop+VA[18]/[19]+MG-venue-pair; " +
+            _notes.Add("summary: venues=DT/ST-occupied-noop+VA[18]/[19]+MG-venue-pair+MG[16]/[17]-vacation-refusal; " +
                 "zone-choice=STR250/251-WIRED(NBR-08); ucp-pairing=+0x54→BUY+LIVE/+0x55→BUILD+CAMERA; " +
                 "sounds=corpus+evict/demolish/cancel-bdoze-bracket-pinned");
             _done = true;

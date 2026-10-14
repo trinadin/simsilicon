@@ -1985,6 +1985,7 @@ namespace Simitone.Client.UI.Screens
     internal int VenueOccupiedNoOpsForProbe;       // DT/Studio occupied silent no-ops
     internal int VenueVacationEvictConfirmsForProbe; // Vacation [18]/[19] confirms shown
     internal int VenueVacationNoDialogForProbe;    // Vacation unbuilt sound-only outcomes
+    internal int MagicVacationRefusalsForProbe;    // Magic [16]/[17] home-on-vacation refusals
 
     // Port literals (disclosed): the receipts and the switch failure wording
     // are not in any decoded STR set; the rezone cascade confirms reuse the
@@ -2095,6 +2096,26 @@ namespace Simitone.Client.UI.Screens
             return (string.IsNullOrEmpty(s) || s.StartsWith("131:")) ? "There is a family on vacation on this lot." : s;
         }
     }
+    // NBR-07 Magic pre-scan refusal (cWinMagicland 0x584170-0x58418c): the vt+0x114
+    // call passes message (row 16) in r4 and title (row 17) in r5 — the port
+    // exposes them as Message/Title respectively, matching the other venue legs.
+    internal static string MagicRefusalTitle
+    {
+        get
+        {
+            var s = GameFacade.Strings.GetString("131", "17");
+            return (string.IsNullOrEmpty(s) || s.StartsWith("131:")) ? "Not So Fast!" : s;
+        }
+    }
+    internal static string MagicRefusalMessage
+    {
+        get
+        {
+            var s = GameFacade.Strings.GetString("131", "16");
+            return (string.IsNullOrEmpty(s) || s.StartsWith("131:"))
+                ? "This family is currently on vacation. Strict laws forbid evictions of Sims while they are away from home." : s;
+        }
+    }
     // NBR-07 zone-choice strings (RezoneModeLotHandlerUL @0x469160
     // 0x4691f0-0x46927c; UL LoadUIStrings__Fv @0x4655a0 loads table 250 into
     // [TOC-18224] and table 251 rides the ZoningData table [TOC-18228] as the
@@ -2189,9 +2210,9 @@ namespace Simitone.Client.UI.Screens
     /// click with a silent no-op; Vacation (0x4401c0) runs the STR# 131
     /// [18]/[19] vacation-evict confirm; Magicland (0x5840d0) runs the UL law
     /// (its occupied net-worth confirm + a family-home-on-vacation pre-scan
-    /// that the port cannot reach — no vacation state exists port-side, so the
-    /// [16]/[17] refusal leg is decode-banked) with the venue [14]/[15]
-    /// confirm pair. The lot-band gating (MapHouseNumToIndex: DT lots 21-30,
+    /// that refuses the eviction with the STR# 131 [16]/[17] dialog — reachable
+    /// port-side through FAMI.VacationHouseNumber, so the refusal leg is
+    /// implemented) with the venue [14]/[15] confirm pair. The lot-band gating (MapHouseNumToIndex: DT lots 21-30,
     /// Vacation 40-49, Studio 81-89, Magic 90-98) is already enforced by the
     /// panel's IsNativeHouseForMode mounting, so the flow itself branches on
     /// the mounted mode + the lot's family/built state. NBR-08 (P3-4): the
@@ -2218,6 +2239,31 @@ namespace Simitone.Client.UI.Screens
         {
             BulldozeLotClickFlowVacation(house, family, built);
             return;
+        }
+        if (mode == 7)
+        {
+            // NBR-07 Magic PRE-SCAN (cWinMagicland::EvictModeLotHandler
+            // 0x584130-0x5841a4): BEFORE the UL branch law, if the family whose
+            // home is this lot is currently away on vacation (native
+            // Family+0x13C = FAMI.VacationHouseNumber != 0), refuse the eviction
+            // with the STR# 131 [16]/[17] dialog and NO sound. Native arg order
+            // at the vt+0x114 call (0x584170-0x58418c): r4 = message (row 16),
+            // r5 = title (row 17); r6 = 0 = the OK-only informational form, and
+            // the refusal returns immediately (no sound, no executor).
+            if (family != null && family.VacationHouseNumber != 0)
+            {
+                MagicVacationRefusalsForProbe++;
+                UIMobileAlert refusal = null;
+                refusal = new UIMobileAlert(new UIAlertOptions
+                {
+                    Title = MagicRefusalTitle,
+                    Message = MagicRefusalMessage,
+                    Buttons = UIAlertButton.Ok((b) => { refusal.Close(); _bulldozeDialog = null; })
+                });
+                _bulldozeDialog = refusal;
+                GlobalShowDialog(refusal, true);
+                return;
+            }
         }
 
         // Base/UL (modes 1/4/6) and Magicland (mode 7): the UL branch law.
