@@ -301,8 +301,9 @@ idiom + a bounded watchdog. TWO consecutive 156/0 batteries on merged main
   2026-10-08)** — the gendered title law (career STR block layout +
   cJob::GetName(bool)) wired into every consumer (job panel, dialog tokens,
   web export; also fixed the TSO-remnant level*3+4 desc index), fame
-  screens reconciled against cWinSubpanelFame (one TOC float pair stays
-  disclosed), and the 47-file Studio Town object census found zero missing
+  screens reconciled against cWinSubpanelFame (the once-disclosed
+  IsFriendsNeededShown TOC float pair was decoded by EXP-16b: K = 0.5f,
+  port law exact), and the 47-file Studio Town object census found zero missing
   interactions (1125 interactions, 0 unresolved trees; `ssfame` gate).
   ~~Residuals: EXP-11's award-ceremony choreography blockers (BHAV-level),
   home fame-decay self-start.~~ **CORRECTED 2026-10-09: EXP-11 is TERMINAL
@@ -312,8 +313,9 @@ idiom + a bounded watchdog. TWO consecutive 156/0 batteries on merged main
   idle) that executes in real play; every live primitive mechanically proven
   across runs 1-14; V6 save/reload CLOSED LIVE PASS 5/0). The fame-decay
   law itself is DECODED and the controller mounts (ss census); nothing
-  remains implementable without native-side changes.** Remaining Superstar
-  residual: the fame-screen TOC float pair (wave-2 decode candidate).
+  remains implementable without native-side changes.** No remaining
+  Superstar residual: the fame-screen TOC float pair was decoded by
+  EXP-16b (IsFriendsNeededShown K = 0.5f; port law confirmed exact).
 - Makin' Magic: the major systems are verified live (spells/recipes via the
   mode-38 primitive, duels, nectar, dragon, spellbound, family spells, Magic
   Town transit); **quest-line coverage CLOSED (EXP-17, 2026-10-08)**: the quest
