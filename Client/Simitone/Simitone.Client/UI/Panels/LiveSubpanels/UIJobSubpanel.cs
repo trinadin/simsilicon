@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -555,6 +555,23 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
         public int JobFamilyPopupSkillIndex = -1;
         public int JobFamilyPopupArtRow = -1;
         public readonly uint[] JobFamilyPopupObjectGuids = new uint[2];
+
+        // ---- UI-39 per-surface: native hover-dwell Quick Tips layer ----
+        // (cWinPeople job surface). Law: coordination/evidence/UI-39/
+        // quicktips-decode.md. A skill row's tip is its existing About popup
+        // (ToggleAdultSkillPopup's STR# 137 job-skill triple through
+        // ToggleJobFamilyPopup). Hover-dwell 250ms while TS1QuickTips is ON
+        // opens that About popup without changing the click toggle; hovering
+        // out dismisses a hover-opened popup (0x13/0x14). Click-opened popups
+        // are untouched. The summary/report + pet/fame skill popups keep their
+        // click toggles (bounded).
+        public const int QuickTipDwellMs = 250;              // native ON dwell (0xfa)
+        private int _qtHovered = -1;                          // native +0x164 arm state (skill row index)
+        private int _qtStart;                                  // arm timestamp (timeGetTime stand-in)
+        private bool _qtFired;
+        private bool _qtOpenByHover;                           // popup opened by a dwell hover
+        private static readonly Func<int> QuickTipClock = () => Environment.TickCount;
+        private bool QuickTipsEnabled => GlobalSettings.Default.TS1QuickTips;
         private readonly Dictionary<uint, Texture2D> JobPopupObjectThumbs =
             new Dictionary<uint, Texture2D>();
 
@@ -837,6 +854,18 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
         public override void Update(UpdateState state)
         {
             base.Update(state);
+            QuickTipProcess(QuickTipHitTest(state), QuickTipClock());
+            // Native TSOnMouseExit (0x14): leaving the panel closes a
+            // hover-opened quick-tip popup; click-opened popups are untouched.
+            if (_qtOpenByHover)
+            {
+                var mouse = GetMousePosition(state.MouseState);
+                if (mouse.X < 0 || mouse.Y < 0 || mouse.X >= Size.X || mouse.Y >= Size.Y)
+                {
+                    CloseJobFamilyPopup();
+                    _qtOpenByHover = false;
+                }
+            }
 
             // mount FIRST and BEFORE any early-return (the R114 lesson: UpdateMotives'
             // no-avatar return used to skip the twin mount entirely).
@@ -2098,6 +2127,51 @@ namespace Simitone.Client.UI.Panels.LiveSubpanels
             label.CaptionStyle.Color = UIStyle.Current.Text;
             label.CaptionStyle.Size = 15;
             Add(label);
+        }
+
+        /// Production hit test: the adult skill caption under the mouse (native
+        /// skill rows arm on hover; desktop SkillTwins carry the toggle action).
+        private int QuickTipHitTest(UpdateState state)
+        {
+            if (SkillTwins != null)
+                for (int i = 0; i < SkillTwins.Length; i++)
+                    if (HoverOver(SkillTwins[i], state)) return i;
+            return -1;
+        }
+
+        private static bool HoverOver(UIElement e, UpdateState state)
+        {
+            if (e == null || !e.WillDraw()) return false;
+            var p = e.GetMousePosition(state.MouseState);
+            var s = e.Size;
+            return p.X >= 0 && p.Y >= 0 && p.X < s.X && p.Y < s.Y;
+        }
+
+        /// The dwell pump; mirrors UIOriginalCameraPanel.QuickTipProcess so the
+        /// UI-39 gate's synthetic-hover seam can drive it identically.
+        private void QuickTipProcess(int hovered, int now)
+        {
+            if (hovered != _qtHovered)
+            {
+                // Leaving an armed hover row closes a hover-opened popup (0x14).
+                if (_qtOpenByHover)
+                {
+                    CloseJobFamilyPopup();
+                    _qtOpenByHover = false;
+                }
+                _qtHovered = hovered;
+                _qtStart = now;
+                _qtFired = false;
+                return;
+            }
+            if (_qtHovered < 0 || _qtFired) return;
+            if (!QuickTipsEnabled) return;   // native OFF: buttons disarmed
+            if (now - _qtStart >= QuickTipDwellMs)
+            {
+                _qtFired = true;             // native clears the arm after firing
+                ToggleAdultSkillPopup(_qtHovered);   // 0x13: same triple, same window
+                _qtOpenByHover = true;
+            }
         }
     }
 }
