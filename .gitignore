@@ -270,3 +270,8 @@ user-fm*/
 scratch/
 userdirs/
 publish/
+
+# Simitone/FSO generated scratch — not maintained source (AGENTS.md)
+.nuget-packages
+userdir-*/
+worktrees/
