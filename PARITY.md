@@ -123,8 +123,19 @@ idiom + a bounded watchdog. TWO consecutive 156/0 batteries on merged main
   laws; `uidtbar` gate); the montage's SpriteSlot water positions are
   decoded closed (UL waves = lot-layer window image at (0,0); TS1.0 deltas
   = buffer blit with damage bands 375/565..800 × 400..600, mod-4 hold) —
-  the port's mounts were already engine-exact. Remaining: the view-pie pop
-  gesture (re-proved vtable-unrecoverable — permanent disclosure); UI-38b
+  the port's mounts were already engine-exact. Remaining: ~~the view-pie pop
+  gesture (re-proved vtable-unrecoverable — permanent disclosure)~~
+  **SUPERSEDED (UI-41, 2026-10-25)**: the "vtable-unrecoverable" premise is
+  retired — the binary's CodeWarrior traceback tables name every function
+  (tools/pef-reloc/tb_names.py, 11,896 entries) and the pie vtable is
+  resolved (data 0x75d00, pool-pointer entries, 0x209b50 call glue). The
+  pop is COMMAND-DRIVEN and MODAL (TSOnCommand cmd 13 / sender==pie → the
+  UpdateViewMenu driver direction 0 → the pie Popup family); there is NO
+  drag/tear-off gesture in the binary. Port trigger corrected to HOLD-DWELL
+  (DwellMs=250, a disclosed model constant — the native time constant sits
+  in the undecoded WM-queue post, the one remaining hop; drag retained as
+  secondary arm; 3D hold-steering excluded). `uiviewpie` re-pinned with the
+  dwell truth table. UI-38b
   CLOSED the two unbanked filter laws (2026-10-09): **filter persistence**
   on the native LoadCurrentFilter law (STR# 6 'Filter Bar Settings' slot 3
   in LotLocations.iff — byte-proven; entry applies the 0x10 default then
