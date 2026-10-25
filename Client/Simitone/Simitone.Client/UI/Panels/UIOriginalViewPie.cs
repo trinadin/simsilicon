@@ -56,8 +56,8 @@ namespace Simitone.Client.UI.Panels
     /// UI-41 (2026-10-25) BREAKS the "vtable-unrecoverable" premise above:
     /// the binary's CodeWarrior traceback tables name every function, the
     /// pie vtable is resolved (data 0x75d00; pool-pointer entries through
-    /// the 0x209b50 call glue), and the pop chain is Popup(vt[0x1e0]) ->
-    /// PopupBegin(vt[0x258]) -> EventLoop(vt[0x25c]) — MODAL and
+    /// the 0x209b50 call glue), and the pop chain is the Popup-family
+    /// (Popup/PopupBegin/PopupEventLoop/Begin/EndPopupWindow) — MODAL and
     /// command-driven (view TSOnCommand cmd 13 / sender==pie -> the driver
     /// @0x20ccb0 with direction 0). There is NO drag/tear-off gesture
     /// anywhere in the binary; the r193 eyewitness report ("additional

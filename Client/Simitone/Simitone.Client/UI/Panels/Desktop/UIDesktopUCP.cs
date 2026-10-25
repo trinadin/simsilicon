@@ -482,6 +482,19 @@ namespace Simitone.Client.UI.Panels.Desktop
         // suppresses the click while it is up).
         private void UpdateViewPieGesture(UpdateState state)
         {
+            // UI-41 review P2-2: the hold-driven 3D camera STEERS on plain
+            // IsDown holds — a dwell there would pop the pie over live
+            // steering. Mirror the step handlers' hold-mode gate: the pie
+            // gesture only arms when the buttons are CLICK-step buttons
+            // (the 2D default camera; UseZoomHold/UseRotateHold == false).
+            var camera = GetActiveCamera();
+            if (Game != null && Game.InLot
+                && (camera?.UseZoomHold != false || camera?.UseRotateHold != false))
+            {
+                _pieArmButton = null;
+                return;
+            }
+
             UIButton held = null;
             if (ZoomInButton != null && ZoomInButton.IsDown) held = ZoomInButton;
             else if (ZoomOutButton != null && ZoomOutButton.IsDown) held = ZoomOutButton;
