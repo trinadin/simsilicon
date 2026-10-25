@@ -26763,9 +26763,19 @@ namespace Simitone.Client
                 }
                 else diag = "no-ucp";
 
-                bool ok = mounted && geometry && cells && dedupe && dispatch && cleanup;
+                // UI-41: the trigger truth table — hold-dwell OR drag, exactly
+                // the disclosed model (250ms dwell; 10px drag secondary).
+                bool dwell = !Simitone.Client.UI.Panels.UIOriginalViewPie.ShouldOpenPie(249, 0)
+                    && !Simitone.Client.UI.Panels.UIOriginalViewPie.ShouldOpenPie(0, 9)
+                    && Simitone.Client.UI.Panels.UIOriginalViewPie.ShouldOpenPie(250, 0)
+                    && Simitone.Client.UI.Panels.UIOriginalViewPie.ShouldOpenPie(249, 10)
+                    && Simitone.Client.UI.Panels.UIOriginalViewPie.ShouldOpenPie(1000, 3);
+                if (!dwell) diag += "dwell;";
+
+                bool ok = mounted && geometry && cells && dedupe && dispatch && cleanup && dwell;
                 Log("AUTOTEST uiviewpie mounted=" + mounted + " geometry=" + geometry + " cells=" + cells
                     + " dedupe=" + dedupe + " dispatch=" + dispatch + " cleanup=" + cleanup
+                    + " dwell=" + dwell
                     + (diag.Length > 0 ? " fails=" + diag : ""));
                 if (ok) Pass("uiviewpie"); else Fail("uiviewpie");
             }

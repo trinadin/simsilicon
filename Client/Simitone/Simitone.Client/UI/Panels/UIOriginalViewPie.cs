@@ -53,13 +53,35 @@ namespace Simitone.Client.UI.Panels
     /// CPState::Rotate/Zoom with NO sound. The port already plays the
     /// exact matrix (UIClockPanel.SwitchSpeed). No zoom sound exists to
     /// recover.
+    /// UI-41 (2026-10-25) BREAKS the "vtable-unrecoverable" premise above:
+    /// the binary's CodeWarrior traceback tables name every function, the
+    /// pie vtable is resolved (data 0x75d00; pool-pointer entries through
+    /// the 0x209b50 call glue), and the pop chain is Popup(vt[0x1e0]) ->
+    /// PopupBegin(vt[0x258]) -> EventLoop(vt[0x25c]) — MODAL and
+    /// command-driven (view TSOnCommand cmd 13 / sender==pie -> the driver
+    /// @0x20ccb0 with direction 0). There is NO drag/tear-off gesture
+    /// anywhere in the binary; the r193 eyewitness report ("additional
+    /// buttons ... only while the mouse is held") plus the modal-while-held
+    /// architecture make HOLD-DWELL the best-supported trigger model.
+    /// DwellMs (250, the UI-39 Quick Tips convention) is a disclosed port
+    /// constant; the WM-queue post that first arms the native pie remains
+    /// the one undecoded hop. The drag arm is retained as a secondary
+    /// trigger (a held drag subsumes the dwell).
     /// </summary>
     public class UIOriginalViewPie : UIContainer
     {
         public const int OriginalRadius = 90;   // cDDDSimsView::Init vtable+488
-        public const int DragThreshold = 10;    // port model (disclosed; UI-37 re-attempt confirmed unrecoverable)
+        public const int DragThreshold = 10;    // secondary arm (port model, disclosed)
+        public const int DwellMs = 250;         // UI-41: hold-dwell trigger (model, disclosed; Quick Tips convention)
         public const int InactiveRadius = 20;   // cTSPieMenu ctor +0x178 = 0x14
         public const int MagnitudeQuantum = 42; // UpdateViewMenu /0x2a quantize
+
+        /// <summary>UI-41: the open decision — hold-dwell OR drag, whichever
+        /// fires first. Static so the gate pins the exact truth table.</summary>
+        public static bool ShouldOpenPie(double heldMs, double dragPx)
+        {
+            return heldMs >= DwellMs || dragPx >= DragThreshold;
+        }
 
         // gate counters
         public static int PiesOpened;
