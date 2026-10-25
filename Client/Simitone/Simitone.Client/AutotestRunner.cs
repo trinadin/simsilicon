@@ -26763,12 +26763,14 @@ namespace Simitone.Client
                 }
                 else diag = "no-ucp";
 
-                // UI-41: the trigger truth table — hold-dwell OR drag, exactly
-                // the disclosed model (250ms dwell; 10px drag secondary).
-                bool dwell = !Simitone.Client.UI.Panels.UIOriginalViewPie.ShouldOpenPie(249, 0)
+                // UI-41b: the trigger truth table — hold-dwell OR drag. The
+                // dwell boundary is the DECODED native constant 333 (the
+                // cTSWinBtn async timeout, tunable global *0x62d8b8), read
+                // in ms; 10px drag stays the secondary arm.
+                bool dwell = !Simitone.Client.UI.Panels.UIOriginalViewPie.ShouldOpenPie(332, 0)
                     && !Simitone.Client.UI.Panels.UIOriginalViewPie.ShouldOpenPie(0, 9)
-                    && Simitone.Client.UI.Panels.UIOriginalViewPie.ShouldOpenPie(250, 0)
-                    && Simitone.Client.UI.Panels.UIOriginalViewPie.ShouldOpenPie(249, 10)
+                    && Simitone.Client.UI.Panels.UIOriginalViewPie.ShouldOpenPie(333, 0)
+                    && Simitone.Client.UI.Panels.UIOriginalViewPie.ShouldOpenPie(332, 10)
                     && Simitone.Client.UI.Panels.UIOriginalViewPie.ShouldOpenPie(1000, 3);
                 if (!dwell) diag += "dwell;";
 
