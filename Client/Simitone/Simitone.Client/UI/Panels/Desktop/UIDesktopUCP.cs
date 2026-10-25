@@ -81,6 +81,7 @@ namespace Simitone.Client.UI.Panels.Desktop
         public Simitone.Client.UI.Panels.UIOriginalViewPie ViewPie;
         private UIButton _pieArmButton;
         private Vector2 _pieArmPos;
+        private TimeSpan _pieArmTime;
 
         // R144: plate readouts (engine section 2 law)
         public Simitone.Client.UI.Controls.UIOriginalText MoneyOriginal;
@@ -468,13 +469,32 @@ namespace Simitone.Client.UI.Panels.Desktop
             Game.Rotation = (Game.Rotation + 1) % 4;
         }
 
-        // R218: the view-pie tear-off. The engine pops its cTSPieMenu from the
-        // window-manager popup path (not statically traceable); the port model
-        // is the classic tear-off — dragging >= DragThreshold px while a small
-        // zoom/rotate button is held opens the radial AT that button; a plain
-        // click still steps (the pie suppresses the click while it is up).
+        // R218 mounted the surface; UI-41 corrected the trigger model. The
+        // native pop is command-driven + modal (pie Popup -> PopupBegin ->
+        // EventLoop, armed by the view's TSOnCommand cmd-13/pie-sender path)
+        // with NO drag/tear-off gesture in the binary; the r193 eyewitness
+        // report ("additional buttons ... only while the mouse is held")
+        // makes HOLD-DWELL the best-supported trigger. Port model: holding a
+        // small zoom/rotate button for DwellMs (250) opens the radial AT that
+        // button; dragging >= DragThreshold px while held still opens it (a
+        // held drag subsumes the dwell — retained so existing muscle memory
+        // and the r218 gate stay valid); a plain click still steps (the pie
+        // suppresses the click while it is up).
         private void UpdateViewPieGesture(UpdateState state)
         {
+            // UI-41 review P2-2: the hold-driven 3D camera STEERS on plain
+            // IsDown holds — a dwell there would pop the pie over live
+            // steering. Mirror the step handlers' hold-mode gate: the pie
+            // gesture only arms when the buttons are CLICK-step buttons
+            // (the 2D default camera; UseZoomHold/UseRotateHold == false).
+            var camera = GetActiveCamera();
+            if (Game != null && Game.InLot
+                && (camera?.UseZoomHold != false || camera?.UseRotateHold != false))
+            {
+                _pieArmButton = null;
+                return;
+            }
+
             UIButton held = null;
             if (ZoomInButton != null && ZoomInButton.IsDown) held = ZoomInButton;
             else if (ZoomOutButton != null && ZoomOutButton.IsDown) held = ZoomOutButton;
@@ -488,11 +508,16 @@ namespace Simitone.Client.UI.Panels.Desktop
                 {
                     _pieArmButton = held;
                     _pieArmPos = m;
+                    _pieArmTime = state.Time.TotalGameTime;
                 }
-                else if (_pieArmButton == held && ViewPie == null
-                    && (m - _pieArmPos).Length() >= Simitone.Client.UI.Panels.UIOriginalViewPie.DragThreshold)
+                else if (_pieArmButton == held && ViewPie == null)
                 {
-                    OpenViewPie(held);
+                    var heldMs = (state.Time.TotalGameTime - _pieArmTime).TotalMilliseconds;
+                    var dragPx = (m - _pieArmPos).Length();
+                    if (Simitone.Client.UI.Panels.UIOriginalViewPie.ShouldOpenPie(heldMs, dragPx))
+                    {
+                        OpenViewPie(held);
+                    }
                 }
             }
             else
