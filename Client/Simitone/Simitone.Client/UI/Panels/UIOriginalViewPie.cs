@@ -60,24 +60,37 @@ namespace Simitone.Client.UI.Panels
     /// (Popup/PopupBegin/PopupEventLoop/Begin/EndPopupWindow) — MODAL and
     /// command-driven (view TSOnCommand cmd 13 / sender==pie -> the driver
     /// @0x20ccb0 with direction 0). There is NO drag/tear-off gesture
-    /// anywhere in the binary; the r193 eyewitness report ("additional
-    /// buttons ... only while the mouse is held") plus the modal-while-held
-    /// architecture make HOLD-DWELL the best-supported trigger model.
-    /// DwellMs (250, the UI-39 Quick Tips convention) is a disclosed port
-    /// constant; the WM-queue post that first arms the native pie remains
-    /// the one undecoded hop. The drag arm is retained as a secondary
-    /// trigger (a held drag subsumes the dwell).
+    /// anywhere in the binary.
+    /// UI-41b (2026-10-25, same session) — THE TRIGGER IS FULLY DECODED.
+    /// The initiator is the CAMERA-PANEL ASYNC BUTTON HOLD:
+    /// cWinCamPanel::Init arms the four zoom/rotate buttons' async config
+    /// (+0x14c flag bit / +0x150 timeout) from GetDefaultAsyncTimeout()
+    /// (= the tunable global at fragment *0x62d8b8, value 333);
+    /// cTSWinBtn::TSOnMouseDownL stamps the arm time (btn+0x154 via the
+    /// clock 0x4ff390); cTSWinBtn::TSPaint fires EVERY FRAME while armed:
+    /// elapsed = clock() - arm > 333 -> SendButtonCommand(19) ->
+    /// cWinCamPanel::TSOnCommand(19, button) -> SetupPopup(index) which
+    /// stores the source button in the popup controller and DEPRESSES it
+    /// (the r193 "phantom buttons ... while the mouse is held"), mounting
+    /// the pie sheets at the button until release. Plain clicks release
+    /// before the timeout and step normally; the view's cmd-13/pie path is
+    /// the pie's own modal re-arm. DwellMs = 333, the decoded native
+    /// constant (clock-unit caveat: 333 ms is the only plausible reading —
+    /// 1/3 s of hold; at 60 Hz ticks it would be 5.5 s, unusable). The drag
+    /// arm stays as a port convenience (a held drag subsumes the dwell).
     /// </summary>
     public class UIOriginalViewPie : UIContainer
     {
         public const int OriginalRadius = 90;   // cDDDSimsView::Init vtable+488
         public const int DragThreshold = 10;    // secondary arm (port model, disclosed)
-        public const int DwellMs = 250;         // UI-41: hold-dwell trigger (model, disclosed; Quick Tips convention)
+        public const int DwellMs = 333;         // UI-41b: DECODED native hold constant (cTSWinBtn async timeout, global *0x62d8b8)
         public const int InactiveRadius = 20;   // cTSPieMenu ctor +0x178 = 0x14
         public const int MagnitudeQuantum = 42; // UpdateViewMenu /0x2a quantize
 
         /// <summary>UI-41: the open decision — hold-dwell OR drag, whichever
         /// fires first. Static so the gate pins the exact truth table.</summary>
+        /// Native polarity note: the engine fires on elapsed > 333 (strictly); the
+        /// port opens at >= 333 — a sub-frame difference at 60 Hz paint cadence.
         public static bool ShouldOpenPie(double heldMs, double dragPx)
         {
             return heldMs >= DwellMs || dragPx >= DragThreshold;

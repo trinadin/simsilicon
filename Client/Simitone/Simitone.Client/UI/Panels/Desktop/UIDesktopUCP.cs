@@ -475,7 +475,7 @@ namespace Simitone.Client.UI.Panels.Desktop
         // with NO drag/tear-off gesture in the binary; the r193 eyewitness
         // report ("additional buttons ... only while the mouse is held")
         // makes HOLD-DWELL the best-supported trigger. Port model: holding a
-        // small zoom/rotate button for DwellMs (250) opens the radial AT that
+        // small zoom/rotate button for DwellMs (the decoded native 333) opens the radial AT that
         // button; dragging >= DragThreshold px while held still opens it (a
         // held drag subsumes the dwell — retained so existing muscle memory
         // and the r218 gate stay valid); a plain click still steps (the pie
