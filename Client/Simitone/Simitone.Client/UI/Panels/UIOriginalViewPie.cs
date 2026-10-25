@@ -89,6 +89,8 @@ namespace Simitone.Client.UI.Panels
 
         /// <summary>UI-41: the open decision — hold-dwell OR drag, whichever
         /// fires first. Static so the gate pins the exact truth table.</summary>
+        /// Native polarity note: the engine fires on elapsed > 333 (strictly); the
+        /// port opens at >= 333 — a sub-frame difference at 60 Hz paint cadence.
         public static bool ShouldOpenPie(double heldMs, double dragPx)
         {
             return heldMs >= DwellMs || dragPx >= DragThreshold;
