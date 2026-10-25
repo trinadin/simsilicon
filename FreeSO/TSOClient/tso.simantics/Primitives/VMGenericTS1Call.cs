@@ -160,30 +160,52 @@ namespace FSO.SimAntics.Primitives
                     var abortTarget = context.StackObject;
                     if (abortTarget == null)
                     {
-                        // SIM-13 (native law, SIM-12 decode): an unresolved Stack
-                        // Object ID reports error code 10 through the original's
-                        // non-fatal reporter (PPC 0x590720, returns), then runs
-                        // ObjectModule::CleanupPeople(module, null): every person
-                        // flushes its ENTIRE action queue, routing each removal
-                        // through CancelAction (the existing Queue Skipped /
-                        // entry-point-4 contract). No person self-teardown, and
-                        // the BHAV continues on the TRUE branch.
-                        // Documented divergence (SIM-12 Option A): the base-object
-                        // self-teardown half (entry-point-3 tree, slot/array
-                        // deregistration, sound quieting, tutorial-pointer clear)
-                        // is NOT reproduced, to avoid mid-tick mass entity removal
-                        // (netplay/state-corruption risk for behavior the owned
-                        // corpus never reaches).
+                        // SIM-13 + SIM-21 (native law, SIM-12 decode): an
+                        // unresolved Stack Object ID reports error code 10
+                        // through the original's non-fatal reporter (PPC
+                        // 0x590720, returns), then runs
+                        // ObjectModule::CleanupPeople(module, null) over the
+                        // module table in slot order — a null target means
+                        // EVERY entry is cleaned, and the BHAV continues on
+                        // the TRUE branch. Per entry, virtual Cleanup(null):
+                        // persons (cXPerson override) flush their ENTIRE
+                        // action queue via CancelAction (the Queue Skipped /
+                        // entry-point-4 contract) with no self-teardown;
+                        // non-person objects (base cXObject::Cleanup, decode
+                        // step 4) run their entry-point-3 check tree
+                        // (RunCheckTree = ExecuteEntryPoint runImmediately),
+                        // clear state, deregister their module slot (low
+                        // halfword 0xFFFF), quiet their sounds
+                        // (QuietBySourceID) and conditionally clear the module
+                        // tutorial pointer (SetTutorialObject(null) unless
+                        // this object IS the tutorial object). The SIM-12
+                        // Option A divergence is retired per the owner's
+                        // 2026-10-24 directive; the port maps the
+                        // deregistration/sound/field-clear half onto
+                        // VMEntity.Delete, which under a running scheduler
+                        // queues end-of-frame deletion (mid-tick-safe) and
+                        // carries sound-owner removal + relation clears.
                         System.Console.WriteLine(
                             "[GenericCall13] error 10: unresolved Stack Object ID.");
-                        foreach (VMAvatar person in context.VM.Context.ObjectQueries.Avatars.ToList())
+                        foreach (var entry in context.VM.Entities.ToList())
                         {
-                            if (person.Dead || person.Thread == null) continue;
-                            var personThread = person.Thread;
-                            var active = personThread.ActiveAction;
-                            if (active != null) personThread.CancelAction(active.UID);
-                            foreach (var action in personThread.Queue.ToList())
-                                personThread.CancelAction(action.UID);
+                            if (entry == null || entry.Dead) continue;
+                            if (entry is VMAvatar person)
+                            {
+                                if (person.Thread == null) continue;
+                                var personThread = person.Thread;
+                                var active = personThread.ActiveAction;
+                                if (active != null) personThread.CancelAction(active.UID);
+                                foreach (var action in personThread.Queue.ToList())
+                                    personThread.CancelAction(action.UID);
+                            }
+                            else
+                            {
+                                entry.ExecuteEntryPoint(3, context.VM.Context, true);
+                                entry.Delete(false, context.VM.Context);
+                                if (context.VM.Context.TutorialObject != entry)
+                                    context.VM.Context.SetTutorialObject(null);
+                            }
                         }
                         return VMPrimitiveExitCode.GOTO_TRUE;
                     }

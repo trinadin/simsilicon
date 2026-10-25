@@ -148,9 +148,15 @@ namespace Simitone.Client.UI.Screens
         public UITwoStateButton AcceptButton;
 
         // R143: desktop runs the ORIGINAL 800x600 screens on the decoded
-        // engine law (r143/cas-layout-law.md + nbhd-layout-law.md); the FreeSO
-        // mobile panels below are the !Original path, unchanged.
-        public readonly bool Original = !FSOEnvironment.SoftwareKeyboard;
+        // engine law (r143/cas-layout-law.md + nbhd-layout-law.md).
+        // CAS-03 (owner directive 2026-10-24 — retire the "touch-path CAS
+        // panels (mobile by design)" disclosure): the ORIGINAL composition
+        // now mounts on the touch path too; Original is unconditional.
+        // FSOEnvironment.SoftwareKeyboard remains an INPUT aid (the
+        // platform-level on-screen keyboard wiring), never a composition
+        // selector. The FreeSO mobile panels below are retained but
+        // unreachable (dead path); the cas03 gate pins this law.
+        public readonly bool Original = true;
         public Simitone.Client.UI.Panels.CAS.UIOriginalDesignChar DesktopCAS;
         public Simitone.Client.UI.Panels.CAS.UIOriginalDesignFamily DesktopFamily;
         public Simitone.Client.UI.Panels.CAS.UIOriginalPickFamily DesktopFamilies;
