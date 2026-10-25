@@ -80,7 +80,7 @@ namespace Simitone.Client
             // candidate house ids, tried in order until one loads with >=1 avatar
             public static string HouseCandidates =
                 "5,4,3,2,1,0,6,7,8,9,10,11,21,22,23,24,25,26,27,28,29,30,40,41,42,43,44,45,46,47,48";
-            public static string Checks = "corpus,lot,motive,mood,load,savedthreads,relation,censor,rel-key,rel-mode,names,audio,jobs,npcinfo,persondata,travelinv,career,freewill,freewillvar,personality,motiveinit,skills,motiveact,relact,money,ttab,ttas,opcodes,genericcall12,genericcall13,genericcall14,callgraph,globalcalls,catalog,snd,iff,objd,ctss,strs,consts,bhvi,bhop,dgrp,slot,operand,opmx,chunks,brainlive,deathchain,savesim,uidump,uipal,loadscreen,carseek,uichrome,uitoolbar,uicur,uiglyph,uiboot,uilogo,uianim,uinbhd,uisplash,uidialog,uilotq,uilive,uijob,uivis,uicas,uidtips,uivfont,uimpanel,uiopts,uibuy,uiexpband,uibandlaw,uienamat,uiinterest,uiintvals,uiexpint,uiexprand,uiconv,uibrand,uidesc,uitt,uibuild,uibldt,uiinterest,uiroof,uigauge,uirate,uihouse,uivalue,uitext,uisurvey,uizoomcage,uicp,uidlgchrome,uibargeom,uiqueuegeom,uicasorig,uirel,uinav,uibudget,uihelp,uiscrap,uipie,uipiesub,uiphone,uismall,uiballoon,uisyschrome,uibigbtn,simvis,uidirt,uistrfam,uifriend,uipanelentry,uicheat,uitrans,uivita,uivitaplay,uicheathelp,uitotal,uiviewpie,censorpixel,roomlaw,uitutorial,uicapture,uipip,uiclip,uicutaway,uitutorial-highlight,uir258,uitall,webexport,ui37,aud19,cc06,uidtbar,aud20,aud22,ssfame,mmquest,ulpets,ui39,ui40";
+            public static string Checks = "corpus,lot,motive,mood,load,savedthreads,relation,censor,rel-key,rel-mode,names,audio,jobs,npcinfo,persondata,travelinv,career,freewill,freewillvar,personality,motiveinit,skills,motiveact,relact,money,ttab,ttas,opcodes,genericcall12,genericcall13,g13clean,genericcall14,cas03,callgraph,globalcalls,catalog,snd,iff,objd,ctss,strs,consts,bhvi,bhop,dgrp,slot,operand,opmx,chunks,brainlive,deathchain,savesim,uidump,uipal,loadscreen,carseek,uichrome,uitoolbar,uicur,uiglyph,uiboot,uilogo,uianim,uinbhd,uisplash,uidialog,uilotq,uilive,uijob,uivis,uicas,uidtips,uivfont,uimpanel,uiopts,uibuy,uiexpband,uibandlaw,uienamat,uiinterest,uiintvals,uiexpint,uiexprand,uiconv,uibrand,uidesc,uitt,uibuild,uibldt,uiinterest,uiroof,uigauge,uirate,uihouse,uivalue,uitext,uisurvey,uizoomcage,uicp,uidlgchrome,uibargeom,uiqueuegeom,uicasorig,uirel,uinav,uibudget,uihelp,uiscrap,uipie,uipiesub,uiphone,uismall,uiballoon,uisyschrome,uibigbtn,simvis,uidirt,uistrfam,uifriend,uipanelentry,uicheat,uitrans,uivita,uivitaplay,uicheathelp,uitotal,uiviewpie,censorpixel,roomlaw,uitutorial,uicapture,uipip,uiclip,uicutaway,uitutorial-highlight,uir258,uitall,webexport,ui37,aud19,cc06,uidtbar,aud20,aud22,ssfame,mmquest,ulpets,ui39,ui40";
             public static int TimeoutMs = 300000; // hard cap (real ms)
             public static bool ExitOnDone = true;
         }
@@ -10553,6 +10553,8 @@ namespace Simitone.Client
             // must retain its PhoneGlobals callers and cancel every other
             // person's Callee/IconOwner references through VMThread.
             if (CheckEnabled("genericcall13")) CheckGenericCall13();
+            if (CheckEnabled("g13clean")) CheckGenericCall13Clean();
+            if (CheckEnabled("cas03")) CheckCAS03TouchCompose();
             // GENERIC CALL 14 (R168): the original case unconditionally
             // assigns signed Temp0 to global 31 and returns true. It does not
             // compare values or inspect Stack Object despite the enum name.
@@ -21897,6 +21899,165 @@ namespace Simitone.Client
             {
                 Log("AUTOTEST genericcall13 EXC " + error.GetType().Name + " " + error.Message);
                 Fail("genericcall13");
+            }
+        }
+
+        private static void CheckGenericCall13Clean()
+        {
+            // SIM-21: malformed call-13 (unresolved Stack Object) now runs the
+            // FULL native ObjectModule::CleanupPeople(module, null) law
+            // (SIM-12 decode): persons flush their entire action queue, every
+            // non-person object runs its entry-point-3 check tree and
+            // deregisters (mid-tick: queued into the scheduler's end-of-frame
+            // deletion set), and the module tutorial pointer clears unless the
+            // object being cleaned IS the tutorial object.
+            try
+            {
+                var contextProperty = typeof(VM).GetProperty(
+                    nameof(VM.Context),
+                    System.Reflection.BindingFlags.Instance |
+                    System.Reflection.BindingFlags.Public |
+                    System.Reflection.BindingFlags.NonPublic);
+                var objectsByIdField = typeof(VM).GetField(
+                    "ObjectsById",
+                    System.Reflection.BindingFlags.Instance |
+                    System.Reflection.BindingFlags.NonPublic);
+
+                (int queueLeft, int objectsQueued, short tutorialAfter) RunLeg(bool includeInnocent)
+                {
+                    var syntheticVM = (VM)System.Runtime.CompilerServices.RuntimeHelpers
+                        .GetUninitializedObject(typeof(VM));
+                    syntheticVM.TS1 = true;
+                    syntheticVM.Entities = new List<VMEntity>();
+                    syntheticVM.PlatformState = new FSO.SimAntics.Model.TS1Platform.VMTS1LotState();
+                    syntheticVM.Scheduler = new FSO.SimAntics.Engine.VMScheduler(syntheticVM);
+                    syntheticVM.Scheduler.RunningNow = true;
+                    var syntheticContext = (VMContext)System.Runtime.CompilerServices.RuntimeHelpers
+                        .GetUninitializedObject(typeof(VMContext));
+                    syntheticContext.VM = syntheticVM;
+                    syntheticContext.ObjectQueries = new VMObjectQueries(syntheticContext);
+                    contextProperty.SetValue(syntheticVM, syntheticContext);
+                    var objectsById = new Dictionary<short, VMEntity>();
+                    objectsByIdField.SetValue(syntheticVM, objectsById);
+
+                    var actor = (VMAvatar)System.Runtime.CompilerServices.RuntimeHelpers
+                        .GetUninitializedObject(typeof(VMAvatar));
+                    actor.ObjectData = new short[80];
+                    actor.EntryPoints = new OBJfFunctionEntry[33];
+                    var personDataField = typeof(VMAvatar).GetField(
+                        "PersonData",
+                        System.Reflection.BindingFlags.Instance |
+                        System.Reflection.BindingFlags.NonPublic);
+                    personDataField.SetValue(actor, new short[101]);
+                    actor.Thread = new FSO.SimAntics.Engine.VMThread(syntheticContext, actor, 4);
+                    syntheticContext.ObjectQueries.Avatars.Add(actor);
+                    syntheticVM.Entities.Add(actor);
+                    objectsById[actor.ObjectID] = actor;
+
+                    VMGameObject StubObject(short id)
+                    {
+                        var result = (VMGameObject)System.Runtime.CompilerServices.RuntimeHelpers
+                            .GetUninitializedObject(typeof(VMGameObject));
+                        result.ObjectData = new short[80];
+                        result.EntryPoints = new OBJfFunctionEntry[33];
+                        var resource = (FSO.Content.GameObject)System.Runtime.CompilerServices.RuntimeHelpers
+                            .GetUninitializedObject(typeof(FSO.Content.GameObject));
+                        resource.OBJ = (FSO.Files.Formats.IFF.Chunks.OBJD)System.Runtime.CompilerServices.RuntimeHelpers
+                            .GetUninitializedObject(typeof(FSO.Files.Formats.IFF.Chunks.OBJD));
+                        result.Object = resource;
+                        result.ObjectID = id;
+                        return result;
+                    }
+
+                    // object 5 = an innocent bystander; object 7 = the module
+                    // tutorial object. Leg 2 (includeInnocent=false) isolates
+                    // the "unless this object IS the tutorial object" guard:
+                    // with only the tutorial object present, its own cleanup
+                    // must NOT clear the pointer.
+                    var tutorialObject = StubObject(7);
+                    syntheticVM.Entities.Add(tutorialObject);
+                    objectsById[7] = tutorialObject;
+                    if (includeInnocent)
+                    {
+                        var innocent = StubObject(5);
+                        syntheticVM.Entities.Add(innocent);
+                        objectsById[5] = innocent;
+                    }
+                    syntheticVM.TS1State.TutorialObjectID = 7;
+
+                    actor.Thread.Queue.Add(new FSO.SimAntics.Engine.VMQueuedAction
+                    {
+                        UID = 1,
+                        Callee = tutorialObject,
+                        StackObject = tutorialObject,
+                        Mode = FSO.SimAntics.Engine.VMQueueMode.Normal,
+                    });
+
+                    var dispatchThread = new FSO.SimAntics.Engine.VMThread(syntheticContext, null, 1);
+                    var exit = new FSO.SimAntics.Primitives.VMGenericTS1Call().Execute(
+                        new FSO.SimAntics.Engine.VMStackFrame
+                        {
+                            Thread = dispatchThread,
+                            StackObject = null,
+                        },
+                        new FSO.SimAntics.Primitives.VMGenericTS1CallOperand
+                        {
+                            Call = VMGenericTS1CallMode.AbortInteractions,
+                        });
+                    if (exit != FSO.SimAntics.Engine.VMPrimitiveExitCode.GOTO_TRUE)
+                        throw new Exception("exit=" + exit);
+                    return (actor.Thread.Queue.Count,
+                        syntheticVM.Scheduler.PendingDeletion.Count,
+                        syntheticVM.TS1State.TutorialObjectID);
+                }
+
+                var leg1 = RunLeg(true);   // bystander present: pointer clears via the bystander's cleanup
+                var leg2 = RunLeg(false);  // tutorial object alone: pointer survives (native guard)
+                bool queueFlushed = leg1.queueLeft == 0;
+                bool objectsQueued = leg1.objectsQueued == 2 && leg2.objectsQueued == 1;
+                bool tutorialLaw = leg1.tutorialAfter == 0 && leg2.tutorialAfter == 7;
+
+                Log("AUTOTEST g13clean queueFlushed=" + queueFlushed
+                    + " leg1=(q" + leg1.queueLeft + ",d" + leg1.objectsQueued + ",t" + leg1.tutorialAfter + ")"
+                    + " leg2=(q" + leg2.queueLeft + ",d" + leg2.objectsQueued + ",t" + leg2.tutorialAfter + ")");
+                if (queueFlushed && objectsQueued && tutorialLaw) { Pass("g13clean"); return; }
+                Fail("g13clean");
+            }
+            catch (Exception error)
+            {
+                Log("AUTOTEST g13clean EXC " + error.GetType().Name + " " + error.Message);
+                Fail("g13clean");
+            }
+        }
+
+        private static void CheckCAS03TouchCompose()
+        {
+            // CAS-03 (owner directive 2026-10-24): the touch path
+            // (FSOEnvironment.SoftwareKeyboard) composes the ORIGINAL CAS
+            // screens — TS1CASScreen.Original is unconditional;
+            // SoftwareKeyboard stays an input aid, never a composition
+            // selector. The mobile CAS panels are the retired dead path.
+            var prev = FSOEnvironment.SoftwareKeyboard;
+            try
+            {
+                FSOEnvironment.SoftwareKeyboard = true;
+                var screen = new Simitone.Client.UI.Screens.TS1CASScreen();
+                bool composeOriginal = screen.Original
+                    && screen.DesktopCAS != null
+                    && screen.DesktopFamily != null
+                    && screen.DesktopFamilies != null;
+                Log("AUTOTEST cas03 softwareKeyboard=true composeOriginal=" + composeOriginal);
+                if (composeOriginal) { Pass("cas03"); return; }
+                Fail("cas03");
+            }
+            catch (Exception error)
+            {
+                Log("AUTOTEST cas03 EXC " + error.GetType().Name + " " + error.Message);
+                Fail("cas03");
+            }
+            finally
+            {
+                FSOEnvironment.SoftwareKeyboard = prev;
             }
         }
 
