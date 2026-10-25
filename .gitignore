@@ -275,3 +275,4 @@ publish/
 .nuget-packages
 userdir-*/
 worktrees/
+game-data
