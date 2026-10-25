@@ -131,11 +131,18 @@ idiom + a bounded watchdog. TWO consecutive 156/0 batteries on merged main
   resolved (data 0x75d00, pool-pointer entries, 0x209b50 call glue). The
   pop is COMMAND-DRIVEN and MODAL (TSOnCommand cmd 13 / sender==pie → the
   UpdateViewMenu driver direction 0 → the pie Popup family); there is NO
-  drag/tear-off gesture in the binary. Port trigger corrected to HOLD-DWELL
-  (DwellMs=250, a disclosed model constant — the native time constant sits
-  in the undecoded WM-queue post, the one remaining hop; drag retained as
-  secondary arm; 3D hold-steering excluded). `uiviewpie` re-pinned with the
-  dwell truth table. UI-38b
+  drag/tear-off gesture in the binary. Port trigger = HOLD-DWELL
+  with the DECODED native constant (UI-41b, 2026-10-25): the initiator is
+  the cWinCamPanel async button hold — cWinCamPanel::Init arms the four
+  zoom/rotate buttons from GetDefaultAsyncTimeout() (tunable global
+  *0x62d8b8 = 333); cTSWinBtn::TSOnMouseDownL stamps the arm clock;
+  TSPaint fires SendButtonCommand(19) when elapsed > 333 ->
+  cWinCamPanel::TSOnCommand(19) -> SetupPopup(index) (stores the source
+  button, DEPRESSES it — the r193 'phantom buttons while held' — and mounts
+  the sheets until release). DwellMs = 333 in the port (clock-unit caveat:
+  ms is the only plausible reading; 60 Hz ticks would be 5.5 s). The view's
+  cmd-13/pie path is the pie's own modal re-arm. Drag retained as secondary
+  arm; 3D hold-steering excluded. `uiviewpie` pins the 332/333 boundary. UI-38b
   CLOSED the two unbanked filter laws (2026-10-09): **filter persistence**
   on the native LoadCurrentFilter law (STR# 6 'Filter Bar Settings' slot 3
   in LotLocations.iff — byte-proven; entry applies the 0x10 default then
