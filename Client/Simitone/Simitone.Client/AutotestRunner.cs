@@ -13933,7 +13933,7 @@ namespace Simitone.Client
                     // (SIM-04) carskip: soak 2 extra full workday cycles (+2h margin) so the
                     // missed-work warn/fire ladder (4126) can walk its countdown naturally.
                     if (CheckEnabled("carskip")) _careerTargetElapsed += 2 * 24 * 60 + 120;
-                    if (CheckEnabled("careerb6")) _careerTargetElapsed += 24 * 60 + 120; // one workday + margin (SIM-22)
+                    if (CheckEnabled("careerb6")) _careerTargetElapsed += 24 * 60 + 360; // one workday + 6h margin (SIM-22 g4: the gate passes at 5:00, boarding ~6:00 — cover the arrival + pay pass past 9:00)
                     // (SIM-02) simjrn: give the journey battery a comfortable window
                     if (CheckEnabled("simjrn")) _careerTargetElapsed += 12 * 60;
                     if ((CheckEnabled("schoolreturn") || CheckEnabled("schoolmiss")) && _schoolEndHour >= 0)
