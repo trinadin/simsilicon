@@ -14132,7 +14132,25 @@ namespace Simitone.Client
                         // read) AND comfort above the (undecoded) boarding gate.
                         // The gate decode is the resume step; this driver stays
                         // as the banked r10 configuration (FAIL-on-no-fire).
-                        try { w.SetMotiveData((VMMotive)3, -60); } catch { }
+                        // g1/g2 stacks + the r9 matrix: the At Work action
+                        // survives any negative comfort DURING the shift; it is
+                        // the 5:00 end-of-shift gate (4102 ins35: PD[63]+comfort
+                        // > 20, else the 4128 bad-mood abort) that strands the
+                        // worker when comfort is negative AT that moment — and
+                        // the PAY pass runs AFTER the ride home, recomputing PD
+                        // from the current comfort (ins8-9 in the same pass).
+                        // Schedule: +20 during the 5:00 hour (3*20/2=30 > 20 ->
+                        // the gate passes; equilibrium +10 rides home), then -20
+                        // from 6:00 (the pay pass computes (10-20)/3 < 0 ->
+                        // ins28 false -> the fine/demotion ladder -> demote 1->0
+                        // -> B6).
+                        int ch = _vm.Context.Clock.Hours;
+                        try
+                        {
+                            if (ch == 5) w.SetMotiveData((VMMotive)3, 20);
+                            else w.SetMotiveData((VMMotive)3, -20);
+                        }
+                        catch { }
                     }
                     // (SIM-22) B6: the attendance fire at level 0 — with the
                     // careerb6 state-set (PD[57]=1 pre-schedule, PD[63]=-50, motives held,
@@ -14205,23 +14223,6 @@ namespace Simitone.Client
                 if (CheckEnabled("careerb6") && _vm.Context.Clock.Hours != 0 && _b6PerfSetToday && _vm.Context.Clock.Hours < 4)
                 {
                     _b6PerfSetToday = false; // reset for the next day
-                }
-                if (CheckEnabled("careerb6") && _vm.Context.Clock.Hours == 0)
-                {
-                    var cw = _avatars.FirstOrDefault(x => x.ObjectID == _careerReturnAvatarId);
-                    if (cw != null)
-                    {
-                        try
-                        {
-                            cw.SetMotiveData(VMMotive.Energy, -100);
-                            cw.SetMotiveData(VMMotive.Hunger, -100);
-                            cw.SetMotiveData(VMMotive.Comfort, -100);
-                            cw.SetMotiveData(VMMotive.Fun, -100);
-                            cw.SetMotiveData(VMMotive.Social, -100);
-                            Log("AUTOTEST careerb6 midnight motive collapse (the engine's perf delta drives PD[63] <= 0 into the pay read)");
-                        }
-                        catch (Exception mc) { Log("AUTOTEST careerb6 motive-collapse EXC " + mc.GetType().Name + " " + mc.Message); }
-                    }
                 }
                 if (_vm.Context.Clock.Hours != 8) return;
                 var w = _avatars.FirstOrDefault(x => x.ObjectID == _careerReturnAvatarId)
@@ -14885,10 +14886,12 @@ namespace Simitone.Client
                 // (routine:ip per frame + blocking state) — the instrument that names the
                 // exact instruction the fork took (ins43 vs ins54, 4134:90 vs 4134:122, the
                 // card dialog site 4124:55).
-                if (CheckEnabled("chancetrace"))
+                if (CheckEnabled("chancetrace") || CheckEnabled("careerb6"))
                 {
                     try
                     {
+                        if (CheckEnabled("careerb6") && _chanceWorkerAvatarId == 0 && _careerReturnAvatarId != 0)
+                            _chanceWorkerAvatarId = _careerReturnAvatarId;
                         var wt = _chanceWorkerEntity != null ? _chanceWorkerEntity.Thread : null;
                         if (wt == null && _chanceWorkerAvatarId != 0)
                         {
