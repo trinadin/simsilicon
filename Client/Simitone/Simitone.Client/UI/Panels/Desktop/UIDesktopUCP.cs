@@ -82,6 +82,29 @@ namespace Simitone.Client.UI.Panels.Desktop
         private UIButton _pieArmButton;
         private Vector2 _pieArmPos;
         private TimeSpan _pieArmTime;
+        private bool _hideButtonsForLocation;
+
+        /// <summary>NBR-09: the away-lot predicate — the port's equivalent
+        /// of the native location-type read at LoadGame (community zoning or
+        /// an away lot id → VisitSession).</summary>
+        internal static bool ComputeHideButtonsForLocation(FSO.SimAntics.VM vm)
+        {
+            return vm != null && vm.TS1
+                && vm.PlatformState is FSO.SimAntics.Model.TS1Platform.VMTS1LotState ts1
+                && ts1.VisitSession;
+        }
+
+        /// <summary>NBR-09: CPState::HideButtonsForLocation — show/hide the
+        /// budget button (funds readout) and the camera button. Idempotent;
+        /// the gate drives both edges directly.</summary>
+        internal void ApplyHideButtonsForLocation(bool hideForLocation)
+        {
+            if (hideForLocation == _hideButtonsForLocation) return;
+            _hideButtonsForLocation = hideForLocation;
+            if (MoneyOriginal != null) MoneyOriginal.Visible = !hideForLocation;
+            if (CameraButton != null) CameraButton.Visible = !hideForLocation;
+        }
+
 
         // R144: plate readouts (engine section 2 law)
         public Simitone.Client.UI.Controls.UIOriginalText MoneyOriginal;
@@ -691,6 +714,15 @@ namespace Simitone.Client.UI.Panels.Desktop
                 // zoom/rotate button opens the radial at that button; plain
                 // clicks step — see UIOriginalViewPie for the engine law).
                 try { UpdateViewPieGesture(state); } catch { }
+
+                // NBR-09: CPState::HideButtonsForLocation — the native law
+                // (LoadGame sets the CPState byte from the location type;
+                // the panel then hides the budget button [+0x100, the funds
+                // readout] and the camera button [+0x1a8, kCameraBtn 2034]
+                // via vt+0x9c/0xa0). The port's away-lot state is the
+                // visit session (the NBR-06 entry law: community zoning or
+                // an away lot id); hide both there.
+                try { ApplyHideButtonsForLocation(ComputeHideButtonsForLocation(vm)); } catch { }
 
                 if (nofocus)
                 {
