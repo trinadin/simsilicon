@@ -13942,7 +13942,9 @@ namespace Simitone.Client
                 // and ==1 (final warning trees). Day 1 = natural miss (car deleted); each
                 // later morning sets PD[69] = Global[1] - (2 | 1) to enter those branches;
                 // day 4+ is left natural to observe the countdown/fire.
-                if (_vm.Context.Clock.Hours == 8 && _vm.Context.Clock.Minutes < 8)
+                // (carskip ONLY — the PD[69] ladder state-sets are the missed-work
+                //  protocol; careerb6 must leave them untouched. Review P1.)
+                if (CheckEnabled("carskip") && _vm.Context.Clock.Hours == 8 && _vm.Context.Clock.Minutes < 8)
                 {
                     int g1now = 0;
                     try { g1now = _vm.GetGlobalValue(1); } catch { }
@@ -14013,6 +14015,9 @@ namespace Simitone.Client
                 }
 
                 // (c) delete spawned CarJunk cars -> the worker cannot board
+                // (carskip ONLY — careerb6 is an attendance probe; review P1:
+                //  ungated deletions were why both careerb6 runs never attended)
+                if (CheckEnabled("carskip"))
                 foreach (var e in entities)
                 {
                     try
@@ -43022,6 +43027,9 @@ namespace Simitone.Client
                     var svm = (FSO.SimAntics.VM)System.Runtime.CompilerServices.RuntimeHelpers
                         .GetUninitializedObject(typeof(FSO.SimAntics.VM));
                     svm.TS1 = true;
+                    // home leg: CurrentHouse=5 is not in the away range and (per the
+                    // live neighborhood) not community-zoned — worst case a zoned lot-5
+                    // environment makes this leg false-FAIL uicp, never false-pass.
                     var homeState = new FSO.SimAntics.Model.TS1Platform.VMTS1LotState { CurrentHouse = 5 };
                     var awayState = new FSO.SimAntics.Model.TS1Platform.VMTS1LotState { CurrentHouse = 93 };
                     svm.PlatformState = awayState;
