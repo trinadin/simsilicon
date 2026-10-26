@@ -14124,17 +14124,18 @@ namespace Simitone.Client
                     // -> the fine/demotion ladder -> demote 1->0 -> B6.
                     if (CheckEnabled("careerb6") && _b6LevelSet && !_b6FireSeen)
                     {
-                        // r9 + the fixed-point law: 'At Work' ins8-9 iterate
-                        // x = (x + comfort)/3 whose equilibrium is comfort/2 —
-                        // any positive-comfort window converges PD[63] back up
-                        // before the pay read (r9: +230 again). comfort = -60
-                        // CONSTANT: equilibrium -30 (the ladder's PD[63] <= 0
-                        // precondition holds at the read) while a single motive
-                        // at -60 does not block the return boarding (r7/r8: -100 did).
+                        // r10 TERMINAL STATE (honest): comfort = -60 constant
+                        // still strands the worker (returnCar=False, no pay) — the
+                        // return boarding's mood gate is tighter than -60. The
+                        // complete constraint set: comfort < 0 sustained (the
+                        // ins8-9 equilibrium comfort/2 must be <= 0 at the pay
+                        // read) AND comfort above the (undecoded) boarding gate.
+                        // The gate decode is the resume step; this driver stays
+                        // as the banked r10 configuration (FAIL-on-no-fire).
                         try { w.SetMotiveData((VMMotive)3, -60); } catch { }
                     }
                     // (SIM-22) B6: the attendance fire at level 0 — with the
-                    // careerb6 state-set (PD[57]=0, PD[63]=-50, motives held,
+                    // careerb6 state-set (PD[57]=1 pre-schedule, PD[63]=-50, motives held,
                     // no car deletions) the ONLY reachable fire path is the
                     // 4103 ins21-27 demotion-at-level-0 branch.
                     if (CheckEnabled("careerb6") && !_b6FireSeen && _b6LevelSet
@@ -14177,9 +14178,8 @@ namespace Simitone.Client
             {
                 if (_vm == null) return;
                 // (SIM-22) careerb6 overnight-shift protocol: hour 8 holds the
-                // boarding-critical motives high (the worker must board at the
-                // 23:00 pickup — wait, the level-1 shift boards late; the hold
-                // at 8 also keeps the day stable); hour 0 COLLAPSES them (the
+                // day stable while the portal books the 23:00 pickup; hour 0
+                // collapses the non-comfort motives (the
                 // worker is at work, past boarding) so the engine's own
                 // mood-driven performance delta carries PD[63] <= 0 into the
                 // 05:00 pay read — the fine/demotion ladder precondition.
