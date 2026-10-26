@@ -1496,6 +1496,7 @@ namespace Simitone.Client
                 || CheckEnabled("carreturn") || CheckEnabled("schoolreturn")
                 || CheckEnabled("schoolmiss")
                 || CheckEnabled("chancetrace") || CheckEnabled("carskip")
+                || CheckEnabled("careerb6")
                 || CheckEnabled("simjrn")
                 || CheckEnabled("deathrel")
                 || CheckEnabled("deathtrace") || CheckEnabled("ghosttrace")
@@ -12215,6 +12216,7 @@ namespace Simitone.Client
             if (CheckEnabled("carseek") || CheckEnabled("carreturn") || CheckEnabled("schoolreturn")
                 || CheckEnabled("schoolmiss")
                 || CheckEnabled("chancetrace") || CheckEnabled("carskip")
+                || CheckEnabled("careerb6")
                 || CheckEnabled("simjrn"))
             {
                 Log("AUTOTEST carseek: entering career soak after pins minute=" +
@@ -12299,6 +12301,12 @@ namespace Simitone.Client
         private static readonly HashSet<ushort> _careerPostEndFrameIds = new HashSet<ushort>();
         // (SIM-04) carskip: missed-work warn/fire ladder probe (CarPortal 4125/4126/4127).
         private static bool _skipWarnObjSeen, _skipFireSeen, _skip4126Seen, _skip4127Seen, _skipWarnDialogSeen;
+        // (SIM-22) careerb6: the B6 branch — fired at level 0 (CarPortal 4103
+        // ins21-27: the demotion decrement at PD[57]==0 → job-loss notice +
+        // JobType cleared). Attendance probe: motives held, level state-set 0
+        // with collapsed performance — the fire at level 0 is B6 by construction.
+        private static bool _b6LevelSet, _b6FireSeen, _b6DialogSeen;
+        private static int _b6LastPd56 = int.MinValue, _b6FireHour = -1;
         private static int _skipCarsDeleted;
         private static int _skipLastPd69 = int.MinValue, _skipLastPd56 = int.MinValue, _skipLastGlobal1 = int.MinValue;
         private static readonly List<string> _skipPdLog = new List<string>();
@@ -13559,7 +13567,7 @@ namespace Simitone.Client
                 _careerPromotedSalaryExpected = 0;
                 _careerPayTuningExpected = 0;
                 _careerPromotionBonusExpected = 0;
-                if ((CheckEnabled("carreturn") || CheckEnabled("carskip")) && jobs != null)
+                if ((CheckEnabled("carreturn") || CheckEnabled("carskip") || CheckEnabled("careerb6")) && jobs != null)
                 {
                     var employed = _avatars.Where(x =>
                     {
@@ -13880,6 +13888,7 @@ namespace Simitone.Client
                     // (SIM-04) carskip: soak 2 extra full workday cycles (+2h margin) so the
                     // missed-work warn/fire ladder (4126) can walk its countdown naturally.
                     if (CheckEnabled("carskip")) _careerTargetElapsed += 2 * 24 * 60 + 120;
+                    if (CheckEnabled("careerb6")) _careerTargetElapsed += 24 * 60 + 120; // one workday + margin (SIM-22)
                     // (SIM-02) simjrn: give the journey battery a comfortable window
                     if (CheckEnabled("simjrn")) _careerTargetElapsed += 12 * 60;
                     if ((CheckEnabled("schoolreturn") || CheckEnabled("schoolmiss")) && _schoolEndHour >= 0)
@@ -14055,6 +14064,38 @@ namespace Simitone.Client
                         _skipFireSeen = true;
                         Log("AUTOTEST carskip B9: FIRED — JobType PD[56] " + _skipLastPd56 + " -> 0 (job cleared by the missed-work ladder)");
                     }
+                    if (CheckEnabled("careerb6") && _b6LevelSet && !_b6FireSeen)
+                    {
+                        // keep performance collapsed through the pay window —
+                        // the engine regenerates PD[63] from mood (held high),
+                        // which would lift the collapse before 4103 evaluates.
+                        try { w.SetPersonData(VMPersonDataVariable.JobPerformance, -50); } catch { }
+                    }
+                    // (SIM-22) B6: the attendance fire at level 0 — with the
+                    // careerb6 state-set (PD[57]=0, PD[63]=-50, motives held,
+                    // no car deletions) the ONLY reachable fire path is the
+                    // 4103 ins21-27 demotion-at-level-0 branch.
+                    if (CheckEnabled("careerb6") && !_b6FireSeen && _b6LevelSet
+                        && _b6LastPd56 > 0 && p56 == 0)
+                    {
+                        _b6FireSeen = true;
+                        _b6FireHour = _vm.Context.Clock.Hours;
+                        Log("AUTOTEST careerb6 B6: FIRED AT LEVEL 0 — JobType PD[56] " + _b6LastPd56
+                            + " -> 0, PD[57]=" + p57 + " (demotion at level 0; 4103 ins21-27 job-loss branch) at "
+                            + _b6FireHour + ":" + _vm.Context.Clock.Minutes.ToString("00"));
+                    }
+                    if (CheckEnabled("careerb6")) _b6LastPd56 = p56;
+                    // (SIM-22) the B6 job-loss notice is a blocking dialog —
+                    // sight it, then release the latch (the r157 orphan idiom)
+                    // so the soak continues.
+                    if (CheckEnabled("careerb6") && !_b6DialogSeen && _vm.GlobalBlockingDialog != null)
+                    {
+                        var b6dlg = _vm.GlobalBlockingDialog;
+                        _b6DialogSeen = true;
+                        _vm.GlobalBlockingDialog = null;
+                        Log("AUTOTEST careerb6 job-loss dialog sighted + released (owner obj"
+                            + b6dlg.ObjectID + ", alive=" + (b6dlg.Dead ? "no" : "yes") + ")");
+                    }
                 }
             }
             catch (Exception ske) { Log("AUTOTEST carskip tick EXC " + ske.GetType().Name + " " + ske.Message); }
@@ -14078,7 +14119,7 @@ namespace Simitone.Client
                          ?? _avatars.FirstOrDefault();
                 if (w == null) return;
 
-                if (CheckEnabled("career5day"))
+                if (CheckEnabled("career5day") || CheckEnabled("careerb6"))
                 {
                     try
                     {
@@ -14107,6 +14148,19 @@ namespace Simitone.Client
                         Log("AUTOTEST career5level state-set PD[57] " + lvlBefore + " -> 5 (Science level 5), PD[63] -> -50 (collapsed performance)");
                     }
                     catch (Exception c5) { Log("AUTOTEST career5level state-set EXC " + c5.GetType().Name + " " + c5.Message); }
+                }
+
+                if (CheckEnabled("careerb6") && !_b6LevelSet)
+                {
+                    try
+                    {
+                        int lvlBefore = w.GetPersonData(VMPersonDataVariable.JobPromotionLevel);
+                        w.SetPersonData(VMPersonDataVariable.JobPromotionLevel, 0);
+                        w.SetPersonData(VMPersonDataVariable.JobPerformance, -50);
+                        _b6LevelSet = true;
+                        Log("AUTOTEST careerb6 state-set PD[57] " + lvlBefore + " -> 0 (level 0), PD[63] -> -50 (collapsed performance — the B6 demotion-at-level-0 precondition)");
+                    }
+                    catch (Exception b6) { Log("AUTOTEST careerb6 state-set EXC " + b6.GetType().Name + " " + b6.Message); }
                 }
             }
             catch (Exception c5e) { Log("AUTOTEST career5 protocol tick EXC " + c5e.GetType().Name + " " + c5e.Message); }
@@ -14855,8 +14909,8 @@ namespace Simitone.Client
                         " carEnt=" + carEnt + " maxCarEnt=" + _carEntityMax + " portalEnt=" + portalEnt +
                         " careerFrames=" + _careerFrameCount + " distinct=" + _careerFrameIds.Count +
                         " jobPerfLvlChanged=" + _careerJobChanged + attrInfo);
-                    if (CheckEnabled("carskip")) CareerSkipTick();
-                    if (CheckEnabled("career5day") || CheckEnabled("career5level")) CareerProtocolTick();
+                    if (CheckEnabled("carskip") || CheckEnabled("careerb6")) CareerSkipTick();
+                    if (CheckEnabled("career5day") || CheckEnabled("career5level") || CheckEnabled("careerb6")) CareerProtocolTick();
                     if (CheckEnabled("simjrn")) AutotestSimJourney.Tick(_vm, _avatars?.FirstOrDefault(), Log);
 
                     // R157 GATE-REPLICA (once per hour, minute 0): evaluates the tree's OWN
@@ -14919,9 +14973,11 @@ namespace Simitone.Client
                 }
 
                 bool careerTargetReached;
-                if (CheckEnabled("carreturn") || CheckEnabled("schoolreturn") || CheckEnabled("schoolmiss") || CheckEnabled("chancetrace") || CheckEnabled("carskip") || CheckEnabled("simjrn"))
+                if (CheckEnabled("carreturn") || CheckEnabled("schoolreturn") || CheckEnabled("schoolmiss") || CheckEnabled("chancetrace") || CheckEnabled("carskip")
+                || CheckEnabled("careerb6") || CheckEnabled("simjrn"))
                 {
-                    var carTargetReached = !(CheckEnabled("carreturn") || CheckEnabled("chancetrace") || CheckEnabled("carskip") || CheckEnabled("simjrn"))
+                    var carTargetReached = !(CheckEnabled("carreturn") || CheckEnabled("chancetrace") || CheckEnabled("carskip")
+                || CheckEnabled("careerb6") || CheckEnabled("simjrn"))
                         || (_careerTargetElapsed >= 0
                             && _careerElapsedMinutes >= _careerTargetElapsed);
                     var schoolLifecycleComplete = _schoolReturnEndElapsed >= 0
@@ -15066,6 +15122,18 @@ namespace Simitone.Client
                         " cascadeSeen=" + _chanceCascadeFrameSeen);
                     if (c5ok) { Pass("career5level"); Log("AUTOTEST career5level verdict: level-5 collapse reached and the chance cascade fired"); }
                     else Fail("career5level");
+                }
+                if (CheckEnabled("careerb6"))
+                {
+                    // SIM-22 verdict: B6 live-exercised = the level-0 fire with
+                    // attendance (by construction the 4103 ins21-27 branch); the
+                    // job-loss dialog sighting is logged evidence, not the gate
+                    // (the state change is the branch effect).
+                    var b6ok = _b6LevelSet && _b6FireSeen;
+                    Log("AUTOTEST careerb6 RESULT levelSet=" + _b6LevelSet + " fired=" + _b6FireSeen
+                        + " dialog=" + _b6DialogSeen + " fireHour=" + _b6FireHour);
+                    if (b6ok) { Pass("careerb6"); Log("AUTOTEST careerb6 verdict: FIRED AT LEVEL 0 — the last untraced career branch is live-exercised"); }
+                    else Fail("careerb6");
                 }
                 if (CheckEnabled("schoolreturn") && !CheckEnabled("schoolmiss"))
                 {
@@ -42943,6 +43011,37 @@ namespace Simitone.Client
                     { ok = false; info += " toolbarReadouts-present;"; }
                 }
                 catch (Exception mex) { ok = false; info += " motiveEXC " + mex.GetType().Name + ";"; }
+
+                // NBR-09: CPState::HideButtonsForLocation — on an away lot
+                // (visit session) the native hides the budget button (the
+                // funds readout) and the camera button; home shows both.
+                try
+                {
+                    // (a) the predicate truth table on synthetic states
+                    //     (VisitSession = community zoning | away lot id).
+                    var svm = (FSO.SimAntics.VM)System.Runtime.CompilerServices.RuntimeHelpers
+                        .GetUninitializedObject(typeof(FSO.SimAntics.VM));
+                    svm.TS1 = true;
+                    var homeState = new FSO.SimAntics.Model.TS1Platform.VMTS1LotState { CurrentHouse = 5 };
+                    var awayState = new FSO.SimAntics.Model.TS1Platform.VMTS1LotState { CurrentHouse = 93 };
+                    svm.PlatformState = awayState;
+                    bool awayComputed = Simitone.Client.UI.Panels.Desktop.UIDesktopUCP.ComputeHideButtonsForLocation(svm);
+                    svm.PlatformState = homeState;
+                    bool homeComputed = Simitone.Client.UI.Panels.Desktop.UIDesktopUCP.ComputeHideButtonsForLocation(svm);
+                    svm.TS1 = false;
+                    bool nonTs1Computed = Simitone.Client.UI.Panels.Desktop.UIDesktopUCP.ComputeHideButtonsForLocation(svm);
+                    // (b) the Apply edges on the real UCP controls.
+                    bool visBefore = ucp.MoneyOriginal.Visible && ucp.CameraButton.Visible;
+                    ucp.ApplyHideButtonsForLocation(true);
+                    bool hidden = !ucp.MoneyOriginal.Visible && !ucp.CameraButton.Visible;
+                    ucp.ApplyHideButtonsForLocation(false);
+                    bool shown = ucp.MoneyOriginal.Visible && ucp.CameraButton.Visible;
+                    var nbr09 = awayComputed && !homeComputed && !nonTs1Computed && visBefore && hidden && shown;
+                    if (!nbr09) { ok = false; info += " nbr09hide(away=" + awayComputed + ",home=" + homeComputed + ",vis=" + visBefore + ",hide=" + hidden + ",show=" + shown + ");"; }
+                    Log("AUTOTEST uicp nbr09 hideForLocation away=" + awayComputed + " home=" + homeComputed
+                        + " vis=" + visBefore + " hide=" + hidden + " show=" + shown);
+                }
+                catch (Exception hex) { ok = false; info += " nbr09EXC " + hex.GetType().Name + ";"; }
 
                 Log("AUTOTEST uicp original-plate+patches+buttons+speed-cluster" + (ok ? ": OK " : ": FAIL ") + info);
                 if (ok) Pass("uicp"); else Fail("uicp");
