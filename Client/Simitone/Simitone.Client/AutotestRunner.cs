@@ -12305,7 +12305,7 @@ namespace Simitone.Client
         // ins21-27: the demotion decrement at PD[57]==0 → job-loss notice +
         // JobType cleared). Attendance probe: motives held, level state-set 0
         // with collapsed performance — the fire at level 0 is B6 by construction.
-        private static bool _b6LevelSet, _b6FireSeen, _b6DialogSeen;
+        private static bool _b6LevelSet, _b6FireSeen, _b6DialogSeen, _b6PerfSetToday;
         private static int _b6LastPd56 = int.MinValue, _b6FireHour = -1;
         private static int _skipCarsDeleted;
         private static int _skipLastPd69 = int.MinValue, _skipLastPd56 = int.MinValue, _skipLastGlobal1 = int.MinValue;
@@ -13440,6 +13440,35 @@ namespace Simitone.Client
                 // level-5 CARR end (past the morning warn/fire pass, before the return/pay),
                 // making ins43 deterministically false.
                 _chanceFixtureValid = false;
+                // (SIM-22) careerb6: the level-set must precede the schedule loop
+                // (R222 run-2's lesson) or the portal books the carpool from the
+                // stale level and no car comes. Level 1: the demotion decrement
+                // lands AT 0 -> the B6 job-loss branch.
+                if (CheckEnabled("careerb6") && jobs != null)
+                {
+                    try
+                    {
+                        var b6worker = _avatars.FirstOrDefault(x => x.ObjectID == _careerReturnAvatarId)
+                                    ?? _avatars.FirstOrDefault(a =>
+                                    {
+                                        try { return a.GetPersonData(VMPersonDataVariable.JobType) > 0; } catch { return false; }
+                                    });
+                        if (b6worker != null)
+                        {
+                            // pin the shared selector so every downstream block
+                            // (tick watch, PD pin, fire watch) tracks THIS worker —
+                            // FirstOrDefault was watching a jobless housemate.
+                            _careerReturnAvatarId = b6worker.ObjectID;
+                            int b6lvlBefore = b6worker.GetPersonData(VMPersonDataVariable.JobPromotionLevel);
+                            b6worker.SetPersonData(VMPersonDataVariable.JobPromotionLevel, 1);
+                            b6worker.SetPersonData(VMPersonDataVariable.JobPerformance, -50);
+                            _b6LevelSet = true;
+                            Log("AUTOTEST careerb6 discovery state-set PD[57] " + b6lvlBefore
+                                + " -> 1 (pre-schedule; the demotion decrement lands AT 0), PD[63] -> -50");
+                        }
+                    }
+                    catch (Exception b6d) { Log("AUTOTEST careerb6 discovery state-set EXC " + b6d.GetType().Name + " " + b6d.Message); }
+                }
                 if (CheckEnabled("chancetrace") && !CheckEnabled("carreturn") && jobs != null)
                 {
                     var employed = _avatars.Where(x =>
@@ -13665,7 +13694,7 @@ namespace Simitone.Client
                 Log("AUTOTEST carseek discovery avatars=" + _avatars.Count + " plan=[" + plan + "]");
                 Log("AUTOTEST carseek discovery distinct-mounted-IFFs=" + iffCounts.Count +
                     " car-ifffs=[" + string.Join(",", carIffs) + "]");
-                if (CheckEnabled("carreturn") || CheckEnabled("chancetrace") || CheckEnabled("schoolmiss")) StartCareerBudgetObservation();
+                if (CheckEnabled("carreturn") || CheckEnabled("chancetrace") || CheckEnabled("schoolmiss") || CheckEnabled("careerb6")) StartCareerBudgetObservation();
                 if (CheckEnabled("carreturn") || CheckEnabled("schoolreturn") || CheckEnabled("schoolmiss")) StartCareerCreateObservation();
                 foreach (var kv in iffCounts.OrderByDescending(k => k.Value).Take(30))
                     Log("AUTOTEST carseek discovery iff=" + kv.Key + " entities=" + kv.Value);
@@ -13742,6 +13771,22 @@ namespace Simitone.Client
                             Log("AUTOTEST chancetrace tuning-override mounted on portal obj=" + portal.ObjectID);
                         }
                         catch (Exception ptex) { Log("AUTOTEST chancetrace portal-override EXC " + ptex.GetType().Name + " " + ptex.Message); }
+                    }
+                    // (SIM-22) careerb6: mount the card-probability tuning as 0 on the
+                    // portal (Tuning resolves via frame.Callee — R222 run 3) so every
+                    // pay is deterministically no-card -> the fine/demotion ladder.
+                    if (CheckEnabled("careerb6") && portal != null)
+                    {
+                        try
+                        {
+                            if (portal.TuningReplacement == null)
+                                portal.TuningReplacement = new FSO.SimAntics.Entities.VMEntityTuning(portal, _vm);
+                            portal.TuningReplacement.AppendTable(
+                                new Dictionary<int, Dictionary<int, short>> {
+                                    { 4097, new Dictionary<int, short> { { 7, 0 } } } });
+                            Log("AUTOTEST careerb6 card-probability override mounted on portal obj=" + portal.ObjectID + " (deterministic no-card)");
+                        }
+                        catch (Exception b6pt) { Log("AUTOTEST careerb6 portal-override EXC " + b6pt.GetType().Name + " " + b6pt.Message); }
                     }
                     if (portal != null)
                     {
@@ -14069,15 +14114,28 @@ namespace Simitone.Client
                         _skipFireSeen = true;
                         Log("AUTOTEST carskip B9: FIRED — JobType PD[56] " + _skipLastPd56 + " -> 0 (job cleared by the missed-work ladder)");
                     }
+                    // (SIM-22, the 4102 decode) 'At Work' ins8-9 runs
+                    // MyPD[63] += MyMotives[3]; MyPD[63] /= 3 CONTINUOUSLY, and
+                    // ins13 CALLs 4103 'get paid' inside the same tree — any
+                    // external PD[63] set is folded away by that arithmetic.
+                    // The deterministic driver is MOTIVE 3 (Comfort): hold it
+                    // deeply negative every tick while at work, so every pass
+                    // drives PD[63] negative into the pay read -> ins28 false
+                    // -> the fine/demotion ladder -> demote 1->0 -> B6.
                     if (CheckEnabled("careerb6") && _b6LevelSet && !_b6FireSeen)
                     {
-                        // keep performance collapsed through the pay window —
-                        // the engine regenerates PD[63] from mood (held high),
-                        // which would lift the collapse before 4103 evaluates.
-                        try { w.SetPersonData(VMPersonDataVariable.JobPerformance, -50); } catch { }
+                        // r10 TERMINAL STATE (honest): comfort = -60 constant
+                        // still strands the worker (returnCar=False, no pay) — the
+                        // return boarding's mood gate is tighter than -60. The
+                        // complete constraint set: comfort < 0 sustained (the
+                        // ins8-9 equilibrium comfort/2 must be <= 0 at the pay
+                        // read) AND comfort above the (undecoded) boarding gate.
+                        // The gate decode is the resume step; this driver stays
+                        // as the banked r10 configuration (FAIL-on-no-fire).
+                        try { w.SetMotiveData((VMMotive)3, -60); } catch { }
                     }
                     // (SIM-22) B6: the attendance fire at level 0 — with the
-                    // careerb6 state-set (PD[57]=0, PD[63]=-50, motives held,
+                    // careerb6 state-set (PD[57]=1 pre-schedule, PD[63]=-50, motives held,
                     // no car deletions) the ONLY reachable fire path is the
                     // 4103 ins21-27 demotion-at-level-0 branch.
                     if (CheckEnabled("careerb6") && !_b6FireSeen && _b6LevelSet
@@ -14119,6 +14177,52 @@ namespace Simitone.Client
             try
             {
                 if (_vm == null) return;
+                // (SIM-22) careerb6 overnight-shift protocol: hour 8 holds the
+                // day stable while the portal books the 23:00 pickup; hour 0
+                // collapses the non-comfort motives (the
+                // worker is at work, past boarding) so the engine's own
+                // mood-driven performance delta carries PD[63] <= 0 into the
+                // 05:00 pay read — the fine/demotion ladder precondition.
+                // (SIM-22 r5 lesson -> the R222 timing law) the at-work perf
+                // update overwrites external sets each hour; chancetrace's
+                // EndTime-1h one-shot SURVIVED the pay read because it lands
+                // after the last hourly update. The level-1 overnight shift
+                // ends 05:00 -> the surviving window is hour 4.
+                if (CheckEnabled("careerb6") && _vm.Context.Clock.Hours == 4 && !_b6PerfSetToday)
+                {
+                    _b6PerfSetToday = true;
+                    var pw = _avatars.FirstOrDefault(x => x.ObjectID == _careerReturnAvatarId);
+                    if (pw != null)
+                    {
+                        try
+                        {
+                            pw.SetPersonData(VMPersonDataVariable.JobPerformance, -50);
+                            Log("AUTOTEST careerb6 EndTime-1h perf set PD[63] -> -50 (the chancetrace-proven surviving window; ins28 false -> the fine/demotion ladder -> demote 1->0 -> B6)");
+                        }
+                        catch (Exception p4) { Log("AUTOTEST careerb6 perf-set EXC " + p4.GetType().Name + " " + p4.Message); }
+                    }
+                }
+                if (CheckEnabled("careerb6") && _vm.Context.Clock.Hours != 0 && _b6PerfSetToday && _vm.Context.Clock.Hours < 4)
+                {
+                    _b6PerfSetToday = false; // reset for the next day
+                }
+                if (CheckEnabled("careerb6") && _vm.Context.Clock.Hours == 0)
+                {
+                    var cw = _avatars.FirstOrDefault(x => x.ObjectID == _careerReturnAvatarId);
+                    if (cw != null)
+                    {
+                        try
+                        {
+                            cw.SetMotiveData(VMMotive.Energy, -100);
+                            cw.SetMotiveData(VMMotive.Hunger, -100);
+                            cw.SetMotiveData(VMMotive.Comfort, -100);
+                            cw.SetMotiveData(VMMotive.Fun, -100);
+                            cw.SetMotiveData(VMMotive.Social, -100);
+                            Log("AUTOTEST careerb6 midnight motive collapse (the engine's perf delta drives PD[63] <= 0 into the pay read)");
+                        }
+                        catch (Exception mc) { Log("AUTOTEST careerb6 motive-collapse EXC " + mc.GetType().Name + " " + mc.Message); }
+                    }
+                }
                 if (_vm.Context.Clock.Hours != 8) return;
                 var w = _avatars.FirstOrDefault(x => x.ObjectID == _careerReturnAvatarId)
                          ?? _avatars.FirstOrDefault();
@@ -14155,18 +14259,8 @@ namespace Simitone.Client
                     catch (Exception c5) { Log("AUTOTEST career5level state-set EXC " + c5.GetType().Name + " " + c5.Message); }
                 }
 
-                if (CheckEnabled("careerb6") && !_b6LevelSet)
-                {
-                    try
-                    {
-                        int lvlBefore = w.GetPersonData(VMPersonDataVariable.JobPromotionLevel);
-                        w.SetPersonData(VMPersonDataVariable.JobPromotionLevel, 0);
-                        w.SetPersonData(VMPersonDataVariable.JobPerformance, -50);
-                        _b6LevelSet = true;
-                        Log("AUTOTEST careerb6 state-set PD[57] " + lvlBefore + " -> 0 (level 0), PD[63] -> -50 (collapsed performance — the B6 demotion-at-level-0 precondition)");
-                    }
-                    catch (Exception b6) { Log("AUTOTEST careerb6 state-set EXC " + b6.GetType().Name + " " + b6.Message); }
-                }
+                // (careerb6: the level-set moved to DISCOVERY — pre-schedule,
+                // the R222 run-2 lesson; this tick only holds motives + pins PD[63].)
             }
             catch (Exception c5e) { Log("AUTOTEST career5 protocol tick EXC " + c5e.GetType().Name + " " + c5e.Message); }
         }
