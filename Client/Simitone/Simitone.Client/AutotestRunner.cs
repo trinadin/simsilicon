@@ -12309,6 +12309,7 @@ namespace Simitone.Client
         private static int _b6LastPd56 = int.MinValue, _b6FireHour = -1;
         private static int _skipCarsDeleted;
         private static int _skipLastPd69 = int.MinValue, _skipLastPd56 = int.MinValue, _skipLastGlobal1 = int.MinValue;
+        private static int _skipLastPd63 = int.MinValue, _skipLastMood = int.MinValue;
         private static readonly List<string> _skipPdLog = new List<string>();
         private static readonly HashSet<short> _skipDeletedBaseIds = new HashSet<short>();
         private static int _skipStateSetDay = int.MinValue;
@@ -14099,7 +14100,8 @@ namespace Simitone.Client
                     int pMood = 0;
                     try { pMood = w.GetMotiveData(VMMotive.Mood); } catch { }
                     bool fireNow = _skipLastPd56 > 0 && p56 == 0;
-                    if (p69 != _skipLastPd69 || p56 != _skipLastPd56 || g1 != _skipLastGlobal1)
+                    if (p69 != _skipLastPd69 || p56 != _skipLastPd56 || g1 != _skipLastGlobal1
+                        || p63 != _skipLastPd63 || pMood != _skipLastMood)
                     {
                         var line = "pd69=" + p69 + " pd56=" + p56 + " pd57=" + p57 + " pd24=" + p24
                             + " mood=" + pMood + " pd63=" + p63 + " g0=" + g0 + " g1=" + g1 + " at " + _vm.Context.Clock.Hours + ":" +
@@ -14110,6 +14112,7 @@ namespace Simitone.Client
                             Log("AUTOTEST carskip watch " + line);
                         }
                         _skipLastPd69 = p69; _skipLastPd56 = p56; _skipLastGlobal1 = g1;
+                        _skipLastPd63 = p63; _skipLastMood = pMood;
                     }
                     if (fireNow && !_skipFireSeen)
                     {
@@ -14164,20 +14167,24 @@ namespace Simitone.Client
                         // derived Mood goes deeply negative -> PD equilibrium
                         // mood/2 < 0 -> ins28 false -> the ladder -> B6.
                         // Primaries high (+100) at 22-23 for boarding only.
-                        // i7: the worker boards the 23:00 car through ~0:30 — the
-                        // midnight flip broke boarding mid-walk. +100 through the
-                        // boarding window (22:00-0:59); -40 from 1:00 through the
-                        // ~5:04 fork (4h of aggregation -> deeply negative mood
-                        // -> PD negative -> the ladder -> B6).
-                        int ch2 = _vm.Context.Clock.Hours;
-                        var primaries = new[] { VMMotive.Energy, VMMotive.Hunger, VMMotive.Comfort,
-                            VMMotive.Fun, VMMotive.Social, VMMotive.Hygiene, VMMotive.Bladder };
-                        try
-                        {
-                            bool boarding2 = ch2 >= 22 || ch2 == 0;
-                            foreach (var m in primaries) w.SetMotiveData(m, (short)(boarding2 ? 100 : -40));
-                        }
-                        catch { }
+                        // (SIM-22 j1 READING) the mood FREEZES at the boarding value
+                        // all shift (out-of-world — no aggregation; 257 starred
+                        // At Work frames, mood=26 since 22:23) and pd63 (reset
+                        // to 0 at the 22:23 arm) converges to mood/2 = 13 > 0
+                        // -> the plain pays of i3-i6. THE LEVER: board with a
+                        // MILDLY NEGATIVE mood — no free-will distractions (a
+                        // miserable sim has nothing better than the carpool),
+                        // the mood freezes negative, pd63 -> mood/2 < 0 at the
+                        // fork -> ins28 false -> the ladder -> demote 1->0 ->
+                        // B6. Primaries -40 constant from discovery.
+                        // (j-round FINAL SHAPE) NO motive writes at all — the
+                        // j1 natural shape (100% attendance: mood 26 frozen at
+                        // work, pd63 converging to +12.5 -> the plain pay). The
+                        // B6 lever is the FORK-WINDOW pd63 set (5:00-5:03, in
+                        // CareerProtocolTick): written right before the ~5:04
+                        // fork, zero-to-few convergence passes -> the fork
+                        // reads (set + frozen mood)/3 < 0 -> ins28 false ->
+                        // the ladder -> demote 1->0 -> B6.
                     }
                     // (SIM-22) B6: the attendance fire at level 0 — with the
                     // careerb6 state-set (PD[57]=1 pre-schedule, PD[63]=-50, motives held,
@@ -14228,14 +14235,14 @@ namespace Simitone.Client
                 // worker is at work, past boarding) so the engine's own
                 // mood-driven performance delta carries PD[63] <= 0 into the
                 // 05:00 pay read — the fine/demotion ladder precondition.
-                // (SIM-22 r5 lesson -> the R222 timing law) the at-work perf
-                // update overwrites external sets each hour; chancetrace's
-                // EndTime-1h one-shot SURVIVED the pay read because it lands
-                // after the last hourly update. The level-1 overnight shift
-                // ends 05:00 -> the surviving window is hour 4.
-                if (CheckEnabled("careerb6") && _vm.Context.Clock.Hours == 4 && !_b6PerfSetToday)
+                // (SIM-22 j6: the fork is at ~6:00 AFTER the return home — any
+                // one-shot re-converges (j1: the 4:00 set climbed back to +12.5
+                // by the fork). PER-TICK pin from hour 5 until the fire: every
+                // tick writes -50; the fork's read is at most one convergence
+                // pass after a write: (-50 + mood)/3 < 0 -> ins28 false ->
+                // the ladder -> demote 1->0 -> B6.)
+                if (CheckEnabled("careerb6") && _vm.Context.Clock.Hours >= 5 && !_b6FireSeen)
                 {
-                    _b6PerfSetToday = true;
                     var pw = _avatars.FirstOrDefault(x => x.ObjectID == _careerReturnAvatarId);
                     if (pw != null)
                     {
