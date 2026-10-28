@@ -14096,11 +14096,13 @@ namespace Simitone.Client
                     int g0 = 0, g1 = 0;
                     try { g0 = _vm.GetGlobalValue(0); } catch { }
                     try { g1 = _vm.GetGlobalValue(1); } catch { }
+                    int pMood = 0;
+                    try { pMood = w.GetMotiveData(VMMotive.Mood); } catch { }
                     bool fireNow = _skipLastPd56 > 0 && p56 == 0;
                     if (p69 != _skipLastPd69 || p56 != _skipLastPd56 || g1 != _skipLastGlobal1)
                     {
                         var line = "pd69=" + p69 + " pd56=" + p56 + " pd57=" + p57 + " pd24=" + p24
-                            + " g0=" + g0 + " g1=" + g1 + " at " + _vm.Context.Clock.Hours + ":" +
+                            + " mood=" + pMood + " pd63=" + p63 + " g0=" + g0 + " g1=" + g1 + " at " + _vm.Context.Clock.Hours + ":" +
                             _vm.Context.Clock.Minutes.ToString("00");
                         if (_skipPdLog.Count == 0 || _skipPdLog[_skipPdLog.Count - 1] != line)
                         {
@@ -14144,11 +14146,36 @@ namespace Simitone.Client
                         // from 6:00 (the pay pass computes (10-20)/3 < 0 ->
                         // ins28 false -> the fine/demotion ladder -> demote 1->0
                         // -> B6).
-                        int ch = _vm.Context.Clock.Hours;
+                        // i1 attribution breakthrough: held-negative comfort
+                        // FROM DISCOVERY blocks the 23:00 BOARDING (the 4128 class
+                        // — the worker sat [8209|Sofa] all night, the ladder
+                        // armed, and no g/h/i run ever had a workday; the
+                        // 'post-gate' stacks were the missed-work morning flow).
+                        // Schedule: +20 at the boarding window (22-23) and the
+                        // 5:00 gate; -20 only 0:00-4:59 (the shift's perf math)
+                        // and from 6:00 (the post-ride pay read).
+                        // THE COMPLETE LAW (i6): VMMemory maps MyMotives[N] as a
+                        // raw cast onto VMMotive — so the 4102 perf input
+                        // MyMotives[3] reads the DERIVED MOOD in the port, and
+                        // Mood is recomputed from the primary motives every
+                        // tick (direct Mood writes vanish; one low primary
+                        // cannot dent it — i5/i6's +230s). Drive the primaries:
+                        // ALL low (-40) from midnight through the fork -> the
+                        // derived Mood goes deeply negative -> PD equilibrium
+                        // mood/2 < 0 -> ins28 false -> the ladder -> B6.
+                        // Primaries high (+100) at 22-23 for boarding only.
+                        // i7: the worker boards the 23:00 car through ~0:30 — the
+                        // midnight flip broke boarding mid-walk. +100 through the
+                        // boarding window (22:00-0:59); -40 from 1:00 through the
+                        // ~5:04 fork (4h of aggregation -> deeply negative mood
+                        // -> PD negative -> the ladder -> B6).
+                        int ch2 = _vm.Context.Clock.Hours;
+                        var primaries = new[] { VMMotive.Energy, VMMotive.Hunger, VMMotive.Comfort,
+                            VMMotive.Fun, VMMotive.Social, VMMotive.Hygiene, VMMotive.Bladder };
                         try
                         {
-                            if (ch == 5) w.SetMotiveData((VMMotive)3, 20);
-                            else w.SetMotiveData((VMMotive)3, -20);
+                            bool boarding2 = ch2 >= 22 || ch2 == 0;
+                            foreach (var m in primaries) w.SetMotiveData(m, (short)(boarding2 ? 100 : -40));
                         }
                         catch { }
                     }
@@ -14909,7 +14936,9 @@ namespace Simitone.Client
                                 string wOwner = null;
                                 try { wOwner = wf.ScopeResource?.MainIff?.Filename; } catch { }
                                 sbw.Append('[').Append(wid).Append(':').Append(wf.InstructionPointer)
-                                   .Append(wOwner != null && wOwner.ToLowerInvariant().IndexOf("carportal") >= 0 ? "*" : "").Append(']');
+                                   .Append(wOwner != null
+                                        ? (wOwner.ToLowerInvariant().IndexOf("carportal") >= 0 ? "*" : "|" + System.IO.Path.GetFileNameWithoutExtension(wOwner).Substring(0, Math.Min(4, wOwner.Length)))
+                                        : "").Append(']');
                                 // (R222 run 5) routine ids are PER-IFF — the r155 paper-carrier
                                 // lesson: User00009.iff/PersonGlobals frames also carry 4124 and
                                 // collided with the detector. Only CarPortal-owned frames count.
