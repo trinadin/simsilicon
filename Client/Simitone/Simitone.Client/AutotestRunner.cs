@@ -12418,6 +12418,17 @@ namespace Simitone.Client
                     var iff = frame?.ScopeResource?.MainIff?.Filename ?? "?";
                     var routine = frame?.Routine?.Chunk?.ChunkID ?? 0;
                     var ip = frame?.InstructionPointer ?? 0;
+                    // (SIM-22 j7 anomaly) the pay-frame identity dump: whose PD
+                    // does the fork read — Caller/Callee/StackObject at 4103:9.
+                    if (iff.IndexOf("carportal", StringComparison.OrdinalIgnoreCase) >= 0 && routine == 4103)
+                    {
+                        var pfc = frame.Caller != null ? ("obj" + frame.Caller.ObjectID) : "null";
+                        var pfcallee = frame.Callee != null ? ("obj" + frame.Callee.ObjectID) : "null";
+                        var pfstk = frame.StackObject != null ? ("obj" + frame.StackObject.ObjectID) : "null";
+                        var pfPd63 = (frame.Caller as VMAvatar)?.GetPersonData(VMPersonDataVariable.JobPerformance) ?? int.MinValue;
+                        Log("AUTOTEST careerb6 PAY-FRAME caller=" + pfc + " callee=" + pfcallee
+                            + " stkObj=" + pfstk + " callerPd63=" + pfPd63 + " ip=" + ip);
+                    }
                     var delta = after - before;
                     var entry = iff + ":" + routine + ":" + ip + "=" + delta + " (" + before + "->" + after + ")";
                     _careerBudgetEvents.Add(entry);
