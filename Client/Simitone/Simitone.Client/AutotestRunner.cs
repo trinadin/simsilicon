@@ -12301,12 +12301,20 @@ namespace Simitone.Client
         private static readonly HashSet<ushort> _careerPostEndFrameIds = new HashSet<ushort>();
         // (SIM-04) carskip: missed-work warn/fire ladder probe (CarPortal 4125/4126/4127).
         private static bool _skipWarnObjSeen, _skipFireSeen, _skip4126Seen, _skip4127Seen, _skipWarnDialogSeen;
-        // (SIM-22) careerb6: the B6 branch — fired at level 0 (CarPortal 4103
-        // ins21-27: the demotion decrement at PD[57]==0 → job-loss notice +
-        // JobType cleared). Attendance probe: motives held, level state-set 0
-        // with collapsed performance — the fire at level 0 is B6 by construction.
+        // (SIM-22 closure) careerb6: the NEGATIVE CONTROL for career branch
+        // B6. The raw 4103 decode (addendum 9) proves "fired at level 0" is
+        // statically UNREACHABLE in the shipped CarPortal: the demote ladder's
+        // level-0 edge is ins22 `MyPD[57] == Lit[0]` TRUE -> ins7 (plain pay,
+        // no decrement, no notice); the 0x2e06 notice is STR#301 [6] 'You
+        // have been demoted to $Job:4:5' — level>=1 demotions only. The check
+        // pins that law live: level 0, performance crashed at the pay read ->
+        // the plain salary lands at 4103:9, level/JobType unchanged, no fire.
+        // Job loss in the shipped game = the missed-work ladder (carskip B9)
+        // or chance-card data (chancetrace B3).
         private static bool _b6LevelSet, _b6FireSeen, _b6DialogSeen, _b6PerfSetToday;
         private static int _b6LastPd56 = int.MinValue, _b6FireHour = -1;
+        private static int _b6FirstPd57 = int.MinValue, _b6LastPd57 = int.MinValue;
+        private static int _b6PayEvents, _b6LastPayPd63 = int.MinValue, _b6LastPayDelta = int.MinValue;
         private static int _skipCarsDeleted;
         private static int _skipLastPd69 = int.MinValue, _skipLastPd56 = int.MinValue, _skipLastGlobal1 = int.MinValue;
         private static int _skipLastPd63 = int.MinValue, _skipLastMood = int.MinValue;
@@ -12449,6 +12457,16 @@ namespace Simitone.Client
                     {
                         _careerPayBaseEvents++;
                         _careerPayBaseAmount += delta;
+                        // (SIM-22 closure) the negative control's fork-read pin:
+                        // the caller's live PD[63] at the salary write + the
+                        // landed delta (the plain-pay law: positive salary even
+                        // at a collapsed read).
+                        if (CheckEnabled("careerb6"))
+                        {
+                            _b6PayEvents++;
+                            _b6LastPayDelta = delta;
+                            _b6LastPayPd63 = (frame.Caller as VMAvatar)?.GetPersonData(VMPersonDataVariable.JobPerformance) ?? int.MinValue;
+                        }
                     }
                     else if (ip == 51)
                     {
@@ -13454,8 +13472,10 @@ namespace Simitone.Client
                 _chanceFixtureValid = false;
                 // (SIM-22) careerb6: the level-set must precede the schedule loop
                 // (R222 run-2's lesson) or the portal books the carpool from the
-                // stale level and no car comes. Level 1: the demotion decrement
-                // lands AT 0 -> the B6 job-loss branch.
+                // stale level and no car comes. Level 0 — the raw-graph closure
+                // (addendum 9): at level 0 the shipped ladder CANNOT demote
+                // (ins22 `MyPD[57]==0` TRUE routes the plain pay), so this fixture
+                // asserts exactly that law as the negative control.
                 if (CheckEnabled("careerb6") && jobs != null)
                 {
                     try
@@ -13469,14 +13489,15 @@ namespace Simitone.Client
                         {
                             // pin the shared selector so every downstream block
                             // (tick watch, PD pin, fire watch) tracks THIS worker —
-                            // FirstOrDefault was watching a jobless housemate.
+                            // firstOrDefault was watching a jobless housemate.
                             _careerReturnAvatarId = b6worker.ObjectID;
                             int b6lvlBefore = b6worker.GetPersonData(VMPersonDataVariable.JobPromotionLevel);
-                            b6worker.SetPersonData(VMPersonDataVariable.JobPromotionLevel, 1);
+                            b6worker.SetPersonData(VMPersonDataVariable.JobPromotionLevel, 0);
                             b6worker.SetPersonData(VMPersonDataVariable.JobPerformance, -50);
+                            _b6FirstPd57 = 0; _b6LastPd57 = 0;
                             _b6LevelSet = true;
                             Log("AUTOTEST careerb6 discovery state-set PD[57] " + b6lvlBefore
-                                + " -> 1 (pre-schedule; the demotion decrement lands AT 0), PD[63] -> -50");
+                                + " -> 0 (pre-schedule; the ins22 level-0 edge: plain pay, no demotion — the negative control), PD[63] -> -50");
                         }
                     }
                     catch (Exception b6d) { Log("AUTOTEST careerb6 discovery state-set EXC " + b6d.GetType().Name + " " + b6d.Message); }
@@ -13784,11 +13805,14 @@ namespace Simitone.Client
                         }
                         catch (Exception ptex) { Log("AUTOTEST chancetrace portal-override EXC " + ptex.GetType().Name + " " + ptex.Message); }
                     }
-                    // (SIM-22 k-round) the card-probability=0 override is REMOVED —
-                    // the raw-graph decode (addendum 7) shows the card must FIRE:
-                    // its effect crashes perf between the ins4 gate and the ins28
-                    // read, routing to the demote ladder. The native 12% odds stand.
-                    if (false && CheckEnabled("careerb6") && portal != null)
+                    // (SIM-22 closure) the card-probability=0 override is BACK
+                    // ON: the negative control isolates 4103's OWN ladder law
+                    // (perf<=0 at the read -> ins22 level-0 TRUE -> plain pay),
+                    // so the 12% card (whose DATA effects can demote/fire) must
+                    // be deterministically suppressed. Mounted on the PORTAL —
+                    // the Tuning read resolves through frame.Callee (the R222
+                    // run-3 Callee-split law).
+                    if (CheckEnabled("careerb6") && portal != null)
                     {
                         try
                         {
@@ -14198,30 +14222,34 @@ namespace Simitone.Client
                         // reads (set + frozen mood)/3 < 0 -> ins28 false ->
                         // the ladder -> demote 1->0 -> B6.
                     }
-                    // (SIM-22) B6: the attendance fire at level 0 — with the
-                    // careerb6 state-set (PD[57]=1 pre-schedule, PD[63]=-50, motives held,
-                    // no car deletions) the ONLY reachable fire path is the
-                    // 4103 ins21-27 demotion-at-level-0 branch.
+                    // (SIM-22 closure) the fire watch is the negative control's
+                    // ALARM: with the level-0 state-set and the collapsed pay
+                    // read, NO engine path may clear JobType (the shipped 4103
+                    // cannot demote at level 0 — ins22 TRUE routes the plain
+                    // pay; the card is suppressed). A sighting = a new law.
                     if (CheckEnabled("careerb6") && !_b6FireSeen && _b6LevelSet
                         && _b6LastPd56 > 0 && p56 == 0)
                     {
                         _b6FireSeen = true;
                         _b6FireHour = _vm.Context.Clock.Hours;
-                        Log("AUTOTEST careerb6 B6: FIRED AT LEVEL 0 — JobType PD[56] " + _b6LastPd56
-                            + " -> 0, PD[57]=" + p57 + " (demotion at level 0; 4103 ins21-27 job-loss branch) at "
+                        Log("AUTOTEST careerb6 FIRE SIGHTED at level 0 — JobType PD[56] " + _b6LastPd56
+                            + " -> 0, PD[57]=" + p57 + " (NOT in the shipped 4103 law — new-law sighting) at "
                             + _b6FireHour + ":" + _vm.Context.Clock.Minutes.ToString("00"));
                     }
-                    if (CheckEnabled("careerb6")) _b6LastPd56 = p56;
-                    // (SIM-22) the B6 job-loss notice is a blocking dialog —
-                    // sight it, then release the latch (the r157 orphan idiom)
-                    // so the soak continues.
+                    if (CheckEnabled("careerb6")) { _b6LastPd56 = p56; _b6LastPd57 = p57; }
+                    // (SIM-22 closure) the only dialog the law allows at the
+                    // collapsed level-0 pay is the [5] welcome-home notice
+                    // (ins14) — sight + release it (the r157 orphan idiom) so
+                    // the soak continues; the [6] demotion notice must NEVER
+                    // appear (level-0 edge bypasses ins21/ins27 entirely).
                     if (CheckEnabled("careerb6") && !_b6DialogSeen && _vm.GlobalBlockingDialog != null)
                     {
                         var b6dlg = _vm.GlobalBlockingDialog;
                         _b6DialogSeen = true;
                         _vm.GlobalBlockingDialog = null;
-                        Log("AUTOTEST careerb6 job-loss dialog sighted + released (owner obj"
-                            + b6dlg.ObjectID + ", alive=" + (b6dlg.Dead ? "no" : "yes") + ")");
+                        Log("AUTOTEST careerb6 pay-notice dialog sighted + released (owner obj"
+                            + b6dlg.ObjectID + ", alive=" + (b6dlg.Dead ? "no" : "yes")
+                            + ") — the [5] welcome-home notice per the law");
                     }
                 }
             }
@@ -14247,20 +14275,25 @@ namespace Simitone.Client
                 // worker is at work, past boarding) so the engine's own
                 // mood-driven performance delta carries PD[63] <= 0 into the
                 // 05:00 pay read — the fine/demotion ladder precondition.
-                // (SIM-22 k-round, addendum 7 — the raw-graph protocol) the
-                // card/demote machinery only executes AFTER the ins4 promotion
-                // gate (30+rnd(25..50) < perf — perf must exceed 55-80). Hold
-                // perf at +90 per tick: the gate passes deterministically,
-                // 4104's level-1 skill test returns FALSE (fixture-true), the
-                // 12% card fires across the pay loop, its effect crashes perf,
-                // ins28-F -> ins21 demote -> at level 1 the decrement lands at
-                // 0 with the 0x2e06 fired dialog -> B6.
-                if (CheckEnabled("careerb6") && !_b6FireSeen)
+                // (SIM-22 closure — the raw-graph protocol, addendum 9) perf
+                // PROFILE: +90 through the 5:04 end-of-shift gate (4102 ins35
+                // PD[63]+mood > 20 — the j/k attendance proof), then crash to
+                // -101 from 5:30 through the 6:00 hour so the pay pass reads
+                // <= 0 at BOTH forks whatever the frozen mood ((-101+mood)/3
+                // <= 0 for any mood <= 100): ins43 false (no promotion test),
+                // card suppressed (portal odds 0), ins28 false -> the ladder
+                // -> ins18 -> ins22 level-0 TRUE -> ins7 -> the [5]
+                // welcome-home notice + the plain salary. No demotion, no
+                // fire — the negative control's expected law.
+                if (CheckEnabled("careerb6"))
                 {
                     var pw = _avatars.FirstOrDefault(x => x.ObjectID == _careerReturnAvatarId);
                     if (pw != null)
                     {
-                        try { pw.SetPersonData(VMPersonDataVariable.JobPerformance, 90); } catch { }
+                        var b6h = _vm.Context.Clock.Hours;
+                        var b6m = _vm.Context.Clock.Minutes;
+                        var b6crash = (b6h == 5 && b6m >= 30) || b6h == 6;
+                        try { pw.SetPersonData(VMPersonDataVariable.JobPerformance, (short)(b6crash ? -101 : 90)); } catch { }
                     }
                 }
                 if (CheckEnabled("careerb6") && _vm.Context.Clock.Hours != 0 && _b6PerfSetToday && _vm.Context.Clock.Hours < 4)
@@ -15272,14 +15305,22 @@ namespace Simitone.Client
                 }
                 if (CheckEnabled("careerb6"))
                 {
-                    // SIM-22 verdict: B6 live-exercised = the level-0 fire with
-                    // attendance (by construction the 4103 ins21-27 branch); the
-                    // job-loss dialog sighting is logged evidence, not the gate
-                    // (the state change is the branch effect).
-                    var b6ok = _b6LevelSet && _b6FireSeen;
-                    Log("AUTOTEST careerb6 RESULT levelSet=" + _b6LevelSet + " fired=" + _b6FireSeen
-                        + " dialog=" + _b6DialogSeen + " fireHour=" + _b6FireHour);
-                    if (b6ok) { Pass("careerb6"); Log("AUTOTEST careerb6 verdict: FIRED AT LEVEL 0 — the last untraced career branch is live-exercised"); }
+                    // SIM-22 closure verdict — the NEGATIVE CONTROL. The shipped
+                    // 4103 cannot fire at level 0 (ins22 `MyPD[57]==0` TRUE ->
+                    // ins7 plain pay; addendum 9 + the STR#301 [3]/[5]/[6]
+                    // corpus pins). PASS = the level-0 collapsed pay ran the
+                    // exact law: the salary landed at 4103:9 (positive — the
+                    // plain-pay law) with the caller's PD[63] <= 0 at the write,
+                    // the level and JobType UNCHANGED, and no fire.
+                    var b6ok = _b6LevelSet && _b6PayEvents >= 1 && _b6LastPayPd63 <= 0
+                            && _b6LastPayDelta > 0
+                            && _b6FirstPd57 == 0 && _b6LastPd57 == 0
+                            && _b6LastPd56 > 0 && !_b6FireSeen;
+                    Log("AUTOTEST careerb6 RESULT levelSet=" + _b6LevelSet + " payEvents=" + _b6PayEvents
+                        + " lastPayPd63=" + _b6LastPayPd63 + " payDelta=" + _b6LastPayDelta
+                        + " pd57=" + _b6FirstPd57 + "->" + _b6LastPd57 + " pd56=" + _b6LastPd56
+                        + " fired=" + _b6FireSeen + " dialog=" + _b6DialogSeen);
+                    if (b6ok) { Pass("careerb6"); Log("AUTOTEST careerb6 verdict: LEVEL-0 COLLAPSED PAY -> PLAIN PAY, NO DEMOTION, NO FIRE — the shipped ins22 law (B6 statically unreachable), negative control green"); }
                     else Fail("careerb6");
                 }
                 if (CheckEnabled("schoolreturn") && !CheckEnabled("schoolmiss"))
