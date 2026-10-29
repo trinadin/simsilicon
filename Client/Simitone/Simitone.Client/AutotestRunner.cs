@@ -14275,30 +14275,32 @@ namespace Simitone.Client
                 // worker is at work, past boarding) so the engine's own
                 // mood-driven performance delta carries PD[63] <= 0 into the
                 // 05:00 pay read — the fine/demotion ladder precondition.
-                // (SIM-22 closure — the raw-graph protocol, addendum 9) perf
-                // PROFILE: +90 through the end-of-shift gate (4102 ins35
-                // PD[63]+mood > 20 — the j/k attendance proof; the gate runs
-                // in the first ~minutes past the CARR end), then crash to
-                // -101 from end+6min through end+2h so the pay pass (observed
-                // end+23min at level 0 in c1; end+58-64min at level 1 in the
-                // j-round) reads <= 0 at BOTH forks whatever the frozen mood
-                // ((-101+mood)/3 <= 0 for any mood <= 100): ins43 false (no
-                // promotion test — c1 proved 4104 promotes at level 0 when
-                // perf is high), card suppressed (portal odds 0), ins28 false
-                // -> the ladder -> ins18 -> ins22 level-0 TRUE -> ins7 -> the
-                // [5] welcome-home notice + the plain salary. No demotion, no
-                // fire — the negative control's expected law. Level 0 = the
-                // 10:00-15:00 day CARR (the 5:30/6:00 window of the j-round
-                // was the level-1 NIGHT CARR, end 29:00).
+                // (SIM-22 closure — the RAW 4102/4103 graph, addendum 9) the
+                // end-of-shift pass (4105-true) runs ONE sequence: ins8
+                // (PD63 += mood) -> ins34 (PD63 += mood AGAIN) -> ins9 (/=3)
+                // -> ins35 THE GATE (G > 20) -> [T: skip 4128 | F: CALL 4128
+                // 'display bad mood help' — which returns TRUE on EVERY path,
+                // so gate-fail still goes home] -> the return car (4121) ->
+                // return to world -> wait 1 min -> CALL 4103, whose forks read
+                // the SAME G. So the ladder's only door is gate-fail, and the
+                // control must pin PD63 deep enough that G = (P + 2*mood)/3
+                // stays <= -100 whichever ordering the shift's single-add
+                // converger leaves: P = -1500 gives G = -444 (fresh pin) or
+                // -101 (one converger pass) -> ins43-F, ins28-F, ins18-T (all
+                // rolls: L1 in [-100,-30] > G), ins22 level-0 TRUE -> ins7 ->
+                // the [5] welcome notice + the plain salary. +90 through 14:00
+                // protects boarding (c1/c2 attendance); -1500 from 14:00 until
+                // the pay lands covers the observed 15:00-15:23 end-pass class.
+                // j8 cross-check: its -50 at mood 26 gave G = 0 -> gate-fail ->
+                // 4128-true -> ladder -> ins18-F (L1 never > 0) -> plain pay.
                 if (CheckEnabled("careerb6"))
                 {
                     var pw = _avatars.FirstOrDefault(x => x.ObjectID == _careerReturnAvatarId);
                     if (pw != null)
                     {
                         var b6h = _vm.Context.Clock.Hours;
-                        var b6m = _vm.Context.Clock.Minutes;
-                        var b6crash = (b6h == 15 && b6m >= 6) || b6h == 16;
-                        try { pw.SetPersonData(VMPersonDataVariable.JobPerformance, (short)(b6crash ? -101 : 90)); } catch { }
+                        var b6crash = b6h >= 14 && _b6PayEvents == 0;
+                        try { pw.SetPersonData(VMPersonDataVariable.JobPerformance, (short)(b6crash ? -1500 : 90)); } catch { }
                     }
                 }
                 if (CheckEnabled("careerb6") && _vm.Context.Clock.Hours != 0 && _b6PerfSetToday && _vm.Context.Clock.Hours < 4)
