@@ -13784,10 +13784,11 @@ namespace Simitone.Client
                         }
                         catch (Exception ptex) { Log("AUTOTEST chancetrace portal-override EXC " + ptex.GetType().Name + " " + ptex.Message); }
                     }
-                    // (SIM-22) careerb6: mount the card-probability tuning as 0 on the
-                    // portal (Tuning resolves via frame.Callee — R222 run 3) so every
-                    // pay is deterministically no-card -> the fine/demotion ladder.
-                    if (CheckEnabled("careerb6") && portal != null)
+                    // (SIM-22 k-round) the card-probability=0 override is REMOVED —
+                    // the raw-graph decode (addendum 7) shows the card must FIRE:
+                    // its effect crashes perf between the ins4 gate and the ins28
+                    // read, routing to the demote ladder. The native 12% odds stand.
+                    if (false && CheckEnabled("careerb6") && portal != null)
                     {
                         try
                         {
@@ -14246,23 +14247,20 @@ namespace Simitone.Client
                 // worker is at work, past boarding) so the engine's own
                 // mood-driven performance delta carries PD[63] <= 0 into the
                 // 05:00 pay read — the fine/demotion ladder precondition.
-                // (SIM-22 j6: the fork is at ~6:00 AFTER the return home — any
-                // one-shot re-converges (j1: the 4:00 set climbed back to +12.5
-                // by the fork). PER-TICK pin from hour 5 until the fire: every
-                // tick writes -50; the fork's read is at most one convergence
-                // pass after a write: (-50 + mood)/3 < 0 -> ins28 false ->
-                // the ladder -> demote 1->0 -> B6.)
-                if (CheckEnabled("careerb6") && _vm.Context.Clock.Hours >= 5 && !_b6FireSeen)
+                // (SIM-22 k-round, addendum 7 — the raw-graph protocol) the
+                // card/demote machinery only executes AFTER the ins4 promotion
+                // gate (30+rnd(25..50) < perf — perf must exceed 55-80). Hold
+                // perf at +90 per tick: the gate passes deterministically,
+                // 4104's level-1 skill test returns FALSE (fixture-true), the
+                // 12% card fires across the pay loop, its effect crashes perf,
+                // ins28-F -> ins21 demote -> at level 1 the decrement lands at
+                // 0 with the 0x2e06 fired dialog -> B6.
+                if (CheckEnabled("careerb6") && !_b6FireSeen)
                 {
                     var pw = _avatars.FirstOrDefault(x => x.ObjectID == _careerReturnAvatarId);
                     if (pw != null)
                     {
-                        try
-                        {
-                            pw.SetPersonData(VMPersonDataVariable.JobPerformance, -50);
-                            Log("AUTOTEST careerb6 EndTime-1h perf set PD[63] -> -50 (the chancetrace-proven surviving window; ins28 false -> the fine/demotion ladder -> demote 1->0 -> B6)");
-                        }
-                        catch (Exception p4) { Log("AUTOTEST careerb6 perf-set EXC " + p4.GetType().Name + " " + p4.Message); }
+                        try { pw.SetPersonData(VMPersonDataVariable.JobPerformance, 90); } catch { }
                     }
                 }
                 if (CheckEnabled("careerb6") && _vm.Context.Clock.Hours != 0 && _b6PerfSetToday && _vm.Context.Clock.Hours < 4)
