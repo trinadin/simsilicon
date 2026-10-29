@@ -14276,15 +14276,20 @@ namespace Simitone.Client
                 // mood-driven performance delta carries PD[63] <= 0 into the
                 // 05:00 pay read — the fine/demotion ladder precondition.
                 // (SIM-22 closure — the raw-graph protocol, addendum 9) perf
-                // PROFILE: +90 through the 5:04 end-of-shift gate (4102 ins35
-                // PD[63]+mood > 20 — the j/k attendance proof), then crash to
-                // -101 from 5:30 through the 6:00 hour so the pay pass reads
-                // <= 0 at BOTH forks whatever the frozen mood ((-101+mood)/3
-                // <= 0 for any mood <= 100): ins43 false (no promotion test),
-                // card suppressed (portal odds 0), ins28 false -> the ladder
-                // -> ins18 -> ins22 level-0 TRUE -> ins7 -> the [5]
-                // welcome-home notice + the plain salary. No demotion, no
-                // fire — the negative control's expected law.
+                // PROFILE: +90 through the end-of-shift gate (4102 ins35
+                // PD[63]+mood > 20 — the j/k attendance proof; the gate runs
+                // in the first ~minutes past the CARR end), then crash to
+                // -101 from end+6min through end+2h so the pay pass (observed
+                // end+23min at level 0 in c1; end+58-64min at level 1 in the
+                // j-round) reads <= 0 at BOTH forks whatever the frozen mood
+                // ((-101+mood)/3 <= 0 for any mood <= 100): ins43 false (no
+                // promotion test — c1 proved 4104 promotes at level 0 when
+                // perf is high), card suppressed (portal odds 0), ins28 false
+                // -> the ladder -> ins18 -> ins22 level-0 TRUE -> ins7 -> the
+                // [5] welcome-home notice + the plain salary. No demotion, no
+                // fire — the negative control's expected law. Level 0 = the
+                // 10:00-15:00 day CARR (the 5:30/6:00 window of the j-round
+                // was the level-1 NIGHT CARR, end 29:00).
                 if (CheckEnabled("careerb6"))
                 {
                     var pw = _avatars.FirstOrDefault(x => x.ObjectID == _careerReturnAvatarId);
@@ -14292,7 +14297,7 @@ namespace Simitone.Client
                     {
                         var b6h = _vm.Context.Clock.Hours;
                         var b6m = _vm.Context.Clock.Minutes;
-                        var b6crash = (b6h == 5 && b6m >= 30) || b6h == 6;
+                        var b6crash = (b6h == 15 && b6m >= 6) || b6h == 16;
                         try { pw.SetPersonData(VMPersonDataVariable.JobPerformance, (short)(b6crash ? -101 : 90)); } catch { }
                     }
                 }
