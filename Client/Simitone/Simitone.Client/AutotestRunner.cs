@@ -12313,8 +12313,10 @@ namespace Simitone.Client
         // or chance-card data (chancetrace B3).
         private static bool _b6LevelSet, _b6FireSeen, _b6DialogSeen, _b6PerfSetToday;
         private static int _b6LastPd56 = int.MinValue, _b6FireHour = -1;
+        private static int _b6FirstPd56 = int.MinValue;
         private static int _b6FirstPd57 = int.MinValue, _b6LastPd57 = int.MinValue;
         private static int _b6PayEvents, _b6LastPayPd63 = int.MinValue, _b6LastPayDelta = int.MinValue;
+        private static bool _b6PayPd63Seen;
         private static int _skipCarsDeleted;
         private static int _skipLastPd69 = int.MinValue, _skipLastPd56 = int.MinValue, _skipLastGlobal1 = int.MinValue;
         private static int _skipLastPd63 = int.MinValue, _skipLastMood = int.MinValue;
@@ -12457,15 +12459,22 @@ namespace Simitone.Client
                     {
                         _careerPayBaseEvents++;
                         _careerPayBaseAmount += delta;
-                        // (SIM-22 closure) the negative control's fork-read pin:
-                        // the caller's live PD[63] at the salary write + the
-                        // landed delta (the plain-pay law: positive salary even
-                        // at a collapsed read).
+                        // (SIM-22 closure; review P2-2 hardening) the negative
+                        // control's fork-read pin: the caller's live PD[63] at
+                        // the salary write + the landed delta (the plain-pay
+                        // law: positive salary even at a collapsed read). The
+                        // pd63 capture is explicit-valid (an avatar-cast miss
+                        // must NOT vacuously satisfy the <= 0 clause).
                         if (CheckEnabled("careerb6"))
                         {
-                            _b6PayEvents++;
-                            _b6LastPayDelta = delta;
-                            _b6LastPayPd63 = (frame.Caller as VMAvatar)?.GetPersonData(VMPersonDataVariable.JobPerformance) ?? int.MinValue;
+                            var b6payCaller = frame.Caller as VMAvatar;
+                            if (b6payCaller != null)
+                            {
+                                _b6PayEvents++;
+                                _b6LastPayDelta = delta;
+                                _b6LastPayPd63 = b6payCaller.GetPersonData(VMPersonDataVariable.JobPerformance);
+                                _b6PayPd63Seen = true;
+                            }
                         }
                     }
                     else if (ip == 51)
@@ -13495,6 +13504,8 @@ namespace Simitone.Client
                             b6worker.SetPersonData(VMPersonDataVariable.JobPromotionLevel, 0);
                             b6worker.SetPersonData(VMPersonDataVariable.JobPerformance, -50);
                             _b6FirstPd57 = 0; _b6LastPd57 = 0;
+                            _b6FirstPd56 = b6worker.GetPersonData(VMPersonDataVariable.JobType);
+                            _b6LastPd56 = _b6FirstPd56;
                             _b6LevelSet = true;
                             Log("AUTOTEST careerb6 discovery state-set PD[57] " + b6lvlBefore
                                 + " -> 0 (pre-schedule; the ins22 level-0 edge: plain pay, no demotion — the negative control), PD[63] -> -50");
@@ -15319,13 +15330,13 @@ namespace Simitone.Client
                     // exact law: the salary landed at 4103:9 (positive — the
                     // plain-pay law) with the caller's PD[63] <= 0 at the write,
                     // the level and JobType UNCHANGED, and no fire.
-                    var b6ok = _b6LevelSet && _b6PayEvents >= 1 && _b6LastPayPd63 <= 0
+                    var b6ok = _b6LevelSet && _b6PayEvents >= 1 && _b6PayPd63Seen && _b6LastPayPd63 <= 0
                             && _b6LastPayDelta > 0
                             && _b6FirstPd57 == 0 && _b6LastPd57 == 0
-                            && _b6LastPd56 > 0 && !_b6FireSeen;
+                            && _b6FirstPd56 > 0 && _b6LastPd56 == _b6FirstPd56 && !_b6FireSeen;
                     Log("AUTOTEST careerb6 RESULT levelSet=" + _b6LevelSet + " payEvents=" + _b6PayEvents
                         + " lastPayPd63=" + _b6LastPayPd63 + " payDelta=" + _b6LastPayDelta
-                        + " pd57=" + _b6FirstPd57 + "->" + _b6LastPd57 + " pd56=" + _b6LastPd56
+                        + " pd57=" + _b6FirstPd57 + "->" + _b6LastPd57 + " pd56=" + _b6FirstPd56 + "->" + _b6LastPd56
                         + " fired=" + _b6FireSeen + " dialog=" + _b6DialogSeen);
                     if (b6ok) { Pass("careerb6"); Log("AUTOTEST careerb6 verdict: LEVEL-0 COLLAPSED PAY -> PLAIN PAY, NO DEMOTION, NO FIRE — the shipped ins22 law (B6 statically unreachable), negative control green"); }
                     else Fail("careerb6");
