@@ -644,6 +644,7 @@ namespace FSO.SimAntics
                         if (terrainCount > 0)
                         {
                             cost += terrainCount;
+                            undoChanged = true; // UI-42 tranche 2: terrain drags are undo steps (native cDirtTool.Release submits)
                             if (avatar != null)
                                 Context.VM.SignalChatEvent(new VMChatEvent(avatar, VMChatEventType.Arch,
                                 avatar.Name,
@@ -654,7 +655,11 @@ namespace FSO.SimAntics
                         break;
                     case VMArchitectureCommandType.GRASS_DOT:
                         var dotCount = VMArchitectureTools.DotTerrain(this, new Point(com.x, com.y), (short)com.pattern);
-                        cost += dotCount;
+                        if (dotCount > 0)
+                        {
+                            cost += dotCount;
+                            undoChanged = true; // UI-42 tranche 2 (native grass rides the terrain undoable)
+                        }
                         break;
                 }
             }

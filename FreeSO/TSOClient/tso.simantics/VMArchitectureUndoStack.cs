@@ -39,6 +39,15 @@ namespace FSO.SimAntics
     /// reach the stack because the port refuses them pre-transaction in
     /// VMTS1GlobalLinkStub.Tick (native flush-on-commit-fail is unreachable).
     /// </summary>
+    /// <summary>
+    /// UI-42 tranche 2 — one build-mode undo step. The native UndoManager
+    /// (r256 §1-§6) holds ONE mixed stack: wall/floor drags, terrain drags,
+    /// roof clicks and Hand-tool object actions all submit Undoable records
+    /// to the same lists. The port models the domain payloads as virtual
+    /// Restore/Replay on the entry: the architecture batch (this class) is
+    /// one kind; VMObjectUndoEntry and VMRoofUndoEntry (below) are the
+    /// tranche-2 kinds.
+    /// </summary>
     public class VMArchitectureUndoEntry
     {
         /// <summary>The applied batch (per drag) — replayed verbatim on redo.</summary>
@@ -52,6 +61,62 @@ namespace FSO.SimAntics
 
         /// <summary>Pre-batch story snapshots, keyed by level (1-based).</summary>
         public Dictionary<int, VMArchitectureStorySnapshot> Saved;
+
+        /// <summary>
+        /// UI-42 tranche 2: the terrain drag's pre-batch grid — the native
+        /// TerrainUndoable::TakeSnapshot law (r256 §4: FULL-grid snapshot of
+        /// the 4-corner heights + the second per-tile array; the port adds
+        /// Sloped, which is corner-derived but only recomputed on load, so a
+        /// restore that skipped it would leave stale slope state). Null for
+        /// pure architecture batches.
+        /// </summary>
+        public VMArchitectureTerrainSnapshot Terrain;
+
+        /// <summary>
+        /// Native UndoSelf (law §3/§4): restore the recorded pre-change
+        /// state. The base implementation restores the wall/floor story
+        /// snapshots and the terrain grid, then rebuilds derived state.
+        /// </summary>
+        public virtual void Restore(VMArchitecture arch)
+        {
+            if (Saved != null)
+            {
+                foreach (var kv in Saved)
+                {
+                    var walls = arch.Walls[kv.Key - 1];
+                    var floors = arch.Floors[kv.Key - 1];
+                    Array.Copy(kv.Value.Walls, walls, walls.Length);
+                    Array.Copy(kv.Value.Floors, floors, floors.Length);
+                }
+            }
+            if (Terrain != null)
+            {
+                var t = arch.Terrain;
+                Array.Copy(Terrain.Heights, t.Heights, t.Heights.Length);
+                Array.Copy(Terrain.Grass, t.GrassState, t.GrassState.Length);
+                Array.Copy(Terrain.Sloped, t.Sloped, t.Sloped.Length);
+                arch.SignalTerrainRedraw(); // native DirtyTileNeighborhood → the port's regen path
+            }
+        }
+
+        /// <summary>
+        /// Native RedoSelf (law §3): re-apply the change. The base
+        /// implementation replays the recorded batch — bit-identical for
+        /// terrain too (set-semantics flood-fill from the restored grid;
+        /// documented tranche-1 deviation from the native snapshot swap).
+        /// </summary>
+        public virtual void Replay(VMArchitecture arch)
+        {
+            arch.RunCommands(Forward, false);
+        }
+    }
+
+    /// <summary>UI-42: pre-batch terrain grid (native TakeSnapshot payload).</summary>
+    public class VMArchitectureTerrainSnapshot
+    {
+        public short[] Heights;
+        public byte[] Grass;
+        public bool[] Sloped;
     }
 
     /// <summary>
@@ -130,14 +195,18 @@ namespace FSO.SimAntics
                     cmd.Type == VMArchitectureCommandType.TERRAIN_FLATTEN ||
                     cmd.Type == VMArchitectureCommandType.GRASS_DOT)
                 {
-                    hasTerrain = true; // tranche 1: terrain batches are not captured (design §4)
+                    hasTerrain = true; // UI-42 tranche 2: terrain drags now capture (native TerrainUndoable)
                 }
-                var level = cmd.level;
-                if (level < 1) level = 1;
-                if (level > arch.Stories) level = (sbyte)arch.Stories;
-                if (!levels.Contains(level)) levels.Add(level);
+                else if (!levels.Contains(cmd.level < 1 ? 1 : (cmd.level > arch.Stories ? arch.Stories : cmd.level)))
+                {
+                    // story snapshots only for architecture commands (pure
+                    // terrain batches never touch walls/floors)
+                    var level = cmd.level;
+                    if (level < 1) level = 1;
+                    if (level > arch.Stories) level = (sbyte)arch.Stories;
+                    levels.Add(level);
+                }
             }
-            if (hasTerrain) return null;
 
             var entry = new VMArchitectureUndoEntry
             {
@@ -154,6 +223,18 @@ namespace FSO.SimAntics
                 Array.Copy(walls, snapWalls, walls.Length);
                 Array.Copy(floors, snapFloors, floors.Length);
                 entry.Saved[level] = new VMArchitectureStorySnapshot { Walls = snapWalls, Floors = snapFloors };
+            }
+            if (hasTerrain)
+            {
+                // native TerrainUndoable::TakeSnapshot (r256 §4): full grid,
+                // taken once per drag (one drag = one undo step, law §6)
+                var t = arch.Terrain;
+                entry.Terrain = new VMArchitectureTerrainSnapshot
+                {
+                    Heights = (short[])t.Heights.Clone(),
+                    Grass = (byte[])t.GrassState.Clone(),
+                    Sloped = (bool[])t.Sloped.Clone()
+                };
             }
             return entry;
         }
@@ -179,13 +260,7 @@ namespace FSO.SimAntics
             CaptureSuspended = true;
             try
             {
-                foreach (var kv in entry.Saved)
-                {
-                    var walls = arch.Walls[kv.Key - 1];
-                    var floors = arch.Floors[kv.Key - 1];
-                    Array.Copy(kv.Value.Walls, walls, walls.Length);
-                    Array.Copy(kv.Value.Floors, floors, floors.Length);
-                }
+                entry.Restore(arch);
                 arch.RebuildWallsAt();     // native UndoOne + list rebuild
                 arch.SignalAllDirty();     // keep the dirty flags the Tick path expects
                 arch.RegenRoomMap();       // native DirtyTileNeighborhood/room regen equivalent
@@ -223,7 +298,7 @@ namespace FSO.SimAntics
             {
                 // state is bit-identical to pre-batch after undo, so the batch
                 // replays cleanly (design §2; native forward-iteration law §4).
-                arch.RunCommands(entry.Forward, false);
+                entry.Replay(arch);
             }
             finally
             {
