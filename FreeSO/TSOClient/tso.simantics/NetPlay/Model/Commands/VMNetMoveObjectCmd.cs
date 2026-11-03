@@ -37,6 +37,9 @@ namespace FSO.SimAntics.NetPlay.Model.Commands
                     {
                         Action = FSO.SimAntics.VMObjectUndoEntry.ActionMove,
                         ObjectId = (ushort)obj.ObjectID,
+                        MasterGUID = (obj.MultitileGroup.MultiTile)
+                            ? (obj.MultitileGroup.BaseObject.MasterDefinition ?? obj.MultitileGroup.BaseObject.Object.OBJ).GUID
+                            : obj.MultitileGroup.BaseObject.Object.OBJ.GUID,
                         PrePos = prePos, PreDir = preDir,
                         PostPos = new LotTilePos(x, y, level), PostDir = dir,
                         ActorUID = (caller != null) ? caller.PersistID : 0
