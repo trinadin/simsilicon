@@ -269,15 +269,15 @@ namespace Simitone.Client
                         break;
 
                     case 10:
-                        if (!_arch.UndoStack.CanUndo && _arch.UndoStack.CanRedo)
+                        // the terrain entry sits UNDER the roof entry — settle on
+                        // the roof STATE + the redo list, not stack emptiness
+                        if (_arch.UndoStack.CanRedo && _arch.RoofStyle == _roofStyle0
+                            && Math.Abs(_arch.RoofPitch - _roofPitch0) <= 0.001f)
                         {
-                            if (_arch.RoofStyle != _roofStyle0 || Math.Abs(_arch.RoofPitch - _roofPitch0) > 0.001f)
-                                Fail("roof undo did not restore (" + _arch.RoofStyle + "/" + _arch.RoofPitch.ToString("0.00")
-                                    + " != " + _roofStyle0 + "/" + _roofPitch0.ToString("0.00") + ")");
-                            else Note("roof undo restored the previous pair");
+                            Note("roof undo restored the previous pair");
                             _phase = 11; _phaseTicks = 0;
                         }
-                        else if (++_phaseTicks > PhaseTimeout) { Fail("roof undo never settled"); _done = true; }
+                        else if (++_phaseTicks > PhaseTimeout) { Fail("roof undo never settled (style=" + _arch.RoofStyle + " pitch=" + _arch.RoofPitch.ToString("0.00") + ")"); _done = true; }
                         break;
 
                     case 11: // roof REDO toggles forward again
@@ -343,7 +343,7 @@ namespace Simitone.Client
                         break;
 
                     case 17:
-                        if (!_arch.UndoStack.CanUndo && _arch.UndoStack.CanRedo)
+                        if (_arch.UndoStack.CanRedo)
                         {
                             var live = _vm.GetObjectById(_obj.ObjectID);
                             if (live == null || live.Position.x != _objPre.x || live.Position.y != _objPre.y)
@@ -395,7 +395,7 @@ namespace Simitone.Client
                         break;
 
                     case 23:
-                        if (!_arch.UndoStack.CanUndo && _arch.UndoStack.CanRedo)
+                        if (_arch.UndoStack.CanRedo)
                         {
                             var back = FindByGuid(_objGuid, _objPre);
                             if (back == null)
