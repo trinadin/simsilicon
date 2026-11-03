@@ -120,6 +120,34 @@ namespace FSO.SimAntics
     }
 
     /// <summary>
+    /// UI-42 tranche 2 — the native cRoofUndoable law (r256 §4): stores the
+    /// PREVIOUS roof pattern + pitch; UndoSelf SWAPS stored ↔ current (style
+    /// then pitch) and RedoSelf is a 44-byte tail-call to UndoSelf — roof
+    /// undo/redo is a PURE TOGGLE. The port models the toggle as a Swap used
+    /// by both directions. CommitSelf is the base default (return 0): roof
+    /// changes carry no money law. Submitted per click from the roof panel
+    /// (the native cWinRoofPanel ×2 submit sites = the port's
+    /// VMNetSetRoofCmd).
+    /// </summary>
+    public class VMRoofUndoEntry : VMArchitectureUndoEntry
+    {
+        /// <summary>The pre-change values (what undo restores); swapped on every apply.</summary>
+        public uint Style;
+        public float Pitch;
+
+        public override void Restore(VMArchitecture arch) { Swap(arch); }
+        public override void Replay(VMArchitecture arch) { Swap(arch); }
+
+        private void Swap(VMArchitecture arch)
+        {
+            var s = arch.RoofStyle;
+            var p = arch.RoofPitch;
+            arch.SetRoof(Pitch, Style); // applies the stored pair (world refresh inside)
+            Style = s; Pitch = p;       // native swap: displaced current becomes stored
+        }
+    }
+
+    /// <summary>
     /// Pre-batch copy of one story's wall/floor arrays. WallsAt is NOT stored:
     /// it is fully derived from the Walls arrays (VMArchitecture.RebuildWallsAt
     /// is the authoritative rebuild), so restoring Walls regenerates it.
