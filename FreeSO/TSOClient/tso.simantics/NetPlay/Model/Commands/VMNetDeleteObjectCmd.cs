@@ -23,8 +23,25 @@ namespace FSO.SimAntics.NetPlay.Model.Commands
                 if (obj == null || (!vm.TS1 && caller == null)) return false;
                 var value = (obj.PersistID != 0 || vm.TS1) ? obj.MultitileGroup.Price : 0;
 
+                // UI-42 tranche 2: record #1 (PRE) captured before the kill;
+                // the sell credit is the create-direction delta (native
+                // submits +depreciated value) — Cost = -value so the stack's
+                // undo takes the credit back and redo re-credits.
+                var undoEntry = new FSO.SimAntics.VMObjectUndoEntry
+                {
+                    Action = FSO.SimAntics.VMObjectUndoEntry.ActionDelete,
+                    ObjectId = (ushort)obj.ObjectID,
+                    PrePos = obj.Position, PreDir = obj.Direction,
+                    MasterGUID = (obj.MultitileGroup.MultiTile)
+                        ? obj.MultitileGroup.BaseObject.MasterDefinition.GUID
+                        : obj.MultitileGroup.BaseObject.Object.OBJ.GUID,
+                    Cost = -value,
+                    ActorUID = (caller != null) ? caller.PersistID : 0
+                };
+
                 obj.ExecuteEntryPoint(12, vm.Context, true);
                 obj.Delete(CleanupAll, vm.Context);
+                if (vm.TS1) vm.Context.Architecture.UndoStack.Submit(undoEntry);
 
                 // If we're the server, tell the global link to give their money back.
                 if (vm.GlobalLink != null)

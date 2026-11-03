@@ -120,7 +120,94 @@ namespace FSO.SimAntics
     }
 
     /// <summary>
-    /// UI-42 tranche 2 — the native cRoofUndoable law (r256 §4): stores the
+    /// UI-42 tranche 2 — the native ObjectUndoable law (decoded
+    /// coordination/evidence/UI-42/native-object-terrain-undo-law.md):
+    /// TWO records, not a swap — record #1 (PRE) captured by the ctor via
+    /// AssignFromObject (placement, level, container, the ObjSelector) and
+    /// record #2 (POST) captured at CommitSelf; undo applies #1, redo
+    /// applies #2, nothing reads live state at undo time. Action enum
+    /// (dispatched at UndoSelf/RedoSelf): 0 = create, 1 = move (2 = a
+    /// second move flavor the binary never constructs), 3 = delete.
+    /// RedoSelf: create→CreateObject(#2), move→apply #2, delete→Kill(#1);
+    /// UndoSelf mirrors: create→Kill, move→apply #1, delete→Create(#1) via
+    /// MakeNewOutOfWorldObject from the stored master selector. MONEY: only
+    /// the create direction carries the signed delta (buy +price; sell
+    /// +depreciated value); moves are free (Cost 0). One Hand-tool action =
+    /// one step on the ONE mixed stack.
+    /// </summary>
+    public class VMObjectUndoEntry : VMArchitectureUndoEntry
+    {
+        public const byte ActionCreate = 0;
+        public const byte ActionMove = 1;
+        public const byte ActionDelete = 3;
+
+        public byte Action;
+
+        // record #1 (PRE) — the ctor's AssignFromObject capture
+        public ushort ObjectId;
+        public uint MasterGUID;
+        public LotView.Model.LotTilePos PrePos;
+        public FSO.LotView.Model.Direction PreDir;
+
+        // record #2 (POST) — CommitSelf's capture (the placed state for
+        // moves/creates; unused for delete whose redo is Kill of the
+        // recreated instance)
+        public LotView.Model.LotTilePos PostPos;
+        public FSO.LotView.Model.Direction PostDir;
+
+        public override void Restore(VMArchitecture arch)
+        {
+            var vm = arch.Context.VM;
+            if (vm == null) return;
+            if (Action == ActionMove) Apply(vm, ObjectId, PrePos, PreDir);
+            else if (Action == ActionCreate) Kill(vm, ObjectId);
+            else if (Action == ActionDelete) ObjectId = Create(vm, MasterGUID, PrePos, PreDir);
+        }
+
+        public override void Replay(VMArchitecture arch)
+        {
+            var vm = arch.Context.VM;
+            if (vm == null) return;
+            if (Action == ActionMove) Apply(vm, ObjectId, PostPos, PostDir);
+            else if (Action == ActionCreate) ObjectId = Create(vm, MasterGUID, PostPos, PostDir);
+            else if (Action == ActionDelete) Kill(vm, ObjectId);
+        }
+
+        /// <summary>native InvokeOntoObject(record): re-apply the placement
+        /// through the same production path the move command uses.</summary>
+        private static void Apply(VM vm, ushort id, LotView.Model.LotTilePos pos, FSO.LotView.Model.Direction dir)
+        {
+            var obj = vm.GetObjectById((short)id);
+            if (obj == null) return;
+            obj.SetPosition(pos, dir, vm.Context, Model.VMPlaceRequestFlags.UserPlacement);
+            obj.MultitileGroup.ExecuteEntryPoint(11, vm.Context); // User Placement
+        }
+
+        /// <summary>native KillObject: the production delete flow minus the
+        /// money (the stack's money law owns the transaction).</summary>
+        private static void Kill(VM vm, ushort id)
+        {
+            var obj = vm.GetObjectById((short)id);
+            if (obj == null) return;
+            obj.ExecuteEntryPoint(12, vm.Context, true);
+            obj.Delete(false, vm.Context);
+        }
+
+        /// <summary>native ObjectState::CreateObject / MakeNewOutOfWorldObject:
+        /// recreate from the stored master selector at the recorded
+        /// placement. Returns the NEW base id (the instance identity changes
+        /// across kill/create — the native record holds state, not identity,
+        /// so the port entry refreshes its id after every recreate).</summary>
+        private static ushort Create(VM vm, uint guid, LotView.Model.LotTilePos pos, FSO.LotView.Model.Direction dir)
+        {
+            var group = vm.Context.CreateObjectInstance(guid, pos, dir);
+            group.ExecuteEntryPoint(11, vm.Context); // User Placement
+            return (ushort)group.BaseObject.ObjectID;
+        }
+    }
+    /// <summary>
+    /// UI-42 tranche 2 — the native cRoofUndoable law (r256 §4 + the UI-42
+    /// decode's fourth confirmation): stores the
     /// PREVIOUS roof pattern + pitch; UndoSelf SWAPS stored ↔ current (style
     /// then pitch) and RedoSelf is a 44-byte tail-call to UndoSelf — roof
     /// undo/redo is a PURE TOGGLE. The port models the toggle as a Swap used

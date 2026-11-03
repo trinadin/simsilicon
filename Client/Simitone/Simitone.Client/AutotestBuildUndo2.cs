@@ -52,6 +52,13 @@ namespace Simitone.Client
         private uint _roofStyleNew; private float _roofPitchNew;
         private int _sendAttempts;
 
+        // object legs (slice 3)
+        private FSO.SimAntics.VMGameObject _obj;
+        private FSO.LotView.Model.LotTilePos _objPre, _objPost;
+        private FSO.LotView.Model.Direction _objDir;
+        private uint _objGuid;
+        private int _sellBudget;
+
         private const int PhaseTimeout = 900;
         private const int MaxSends = 3;
 
@@ -100,6 +107,24 @@ namespace Simitone.Client
         private void UndoCmd(bool redo)
         {
             _vm.SendCommand(new VMNetArchUndoCmd { Redo = redo });
+        }
+
+        private FSO.SimAntics.VMGameObject FindByGuid(uint guid, FSO.LotView.Model.LotTilePos near)
+        {
+            FSO.SimAntics.VMGameObject best = null;
+            var bestDist = int.MaxValue;
+            foreach (var e in _vm.Entities)
+            {
+                var g = e as FSO.SimAntics.VMGameObject;
+                if (g == null || g.Dead) continue;
+                var og = (g.MultitileGroup.MultiTile)
+                    ? g.MultitileGroup.BaseObject.MasterDefinition.GUID
+                    : g.MultitileGroup.BaseObject.Object.OBJ.GUID;
+                if (og != guid) continue;
+                var d = Math.Abs(g.Position.x - near.x) + Math.Abs(g.Position.y - near.y);
+                if (d < bestDist) { bestDist = d; best = g; }
+            }
+            return best;
         }
 
         /// <summary>Tick the scenario; returns true when finished.</summary>
@@ -266,10 +291,142 @@ namespace Simitone.Client
                             if (_arch.RoofStyle != _roofStyleNew || Math.Abs(_arch.RoofPitch - _roofPitchNew) > 0.001f)
                                 Fail("roof redo did not re-apply");
                             else Note("roof redo re-applied");
-                            // UI-42 slice 3 (objects) continues at phase 13 when landed
-                            _done = true;
+                            _phase = 13; _phaseTicks = 0;
                         }
                         else if (++_phaseTicks > PhaseTimeout) { Fail("roof redo never settled"); _done = true; }
+                        break;
+
+                    case 13: // find a movable object + a free adjacent drop tile
+                        {
+                            foreach (var e in _vm.Entities)
+                            {
+                                var g = e as FSO.SimAntics.VMGameObject;
+                                if (g == null || g.Dead || g.Position == FSO.LotView.Model.LotTilePos.OUT_OF_WORLD) continue;
+                                if (g.IsUserMovable(_vm.Context, true) != FSO.SimAntics.Model.VMPlacementError.Success) continue;
+                                _obj = g; break;
+                            }
+                            if (_obj == null) { Note("no movable object on lot — object legs skipped"); _done = true; break; }
+                            _objPre = _obj.Position; _objDir = _obj.Direction;
+                            _objGuid = (_obj.MultitileGroup.MultiTile)
+                                ? _obj.MultitileGroup.BaseObject.MasterDefinition.GUID
+                                : _obj.MultitileGroup.BaseObject.Object.OBJ.GUID;
+                            var nx = (short)(_objPre.x + 4 * 16); var ny = _objPre.y;
+                            _objPost = new FSO.LotView.Model.LotTilePos { x = nx, y = ny, Level = _objPre.Level };
+                            Note("object leg: obj" + _obj.ObjectID + " guid 0x" + _objGuid.ToString("x") + " at " + _objPre.x / 16 + "," + _objPre.y / 16);
+                            _phase = 14; _phaseTicks = 0; _sendAttempts = 0;
+                        }
+                        break;
+
+                    case 14: // send the production move
+                        _vm.SendCommand(new VMNetMoveObjectCmd
+                        {
+                            ObjectID = _obj.ObjectID,
+                            x = _objPost.x, y = _objPost.y, level = (sbyte)_objPost.Level,
+                            dir = _objDir
+                        });
+                        _sendAttempts++;
+                        _phase = 15; _phaseTicks = 0;
+                        break;
+
+                    case 15: // move became one step (no money on moves)
+                        if (_arch.UndoStack.CanUndo && _obj.Position.x == _objPost.x)
+                        {
+                            Note("move applied 1 step (no cost)");
+                            _phase = 16; _phaseTicks = 0;
+                        }
+                        else if (++_phaseTicks > PhaseTimeout) { Fail("move never applied/became a step"); _done = true; }
+                        break;
+
+                    case 16: // UNDO restores the PRE placement (apply record #1)
+                        UndoCmd(false);
+                        _phase = 17; _phaseTicks = 0;
+                        break;
+
+                    case 17:
+                        if (!_arch.UndoStack.CanUndo && _arch.UndoStack.CanRedo)
+                        {
+                            var live = _vm.GetObjectById(_obj.ObjectID);
+                            if (live == null || live.Position.x != _objPre.x || live.Position.y != _objPre.y)
+                                Fail("move undo did not restore the placement");
+                            else Note("move undo restored the placement");
+                            _phase = 18; _phaseTicks = 0;
+                        }
+                        else if (++_phaseTicks > PhaseTimeout) { Fail("move undo never settled"); _done = true; }
+                        break;
+
+                    case 18: // REDO re-applies record #2
+                        UndoCmd(true);
+                        _phase = 19; _phaseTicks = 0;
+                        break;
+
+                    case 19:
+                        if (!_arch.UndoStack.CanRedo)
+                        {
+                            var live = _vm.GetObjectById(_obj.ObjectID);
+                            if (live == null || live.Position.x != _objPost.x)
+                                Fail("move redo did not re-apply");
+                            else Note("move redo re-applied");
+                            _phase = 20; _phaseTicks = 0;
+                        }
+                        else if (++_phaseTicks > PhaseTimeout) { Fail("move redo never settled"); _done = true; }
+                        break;
+
+                    case 20: // SELL: the production delete (credit = group price)
+                        _sellBudget = FamilyBudget(_vm);
+                        _vm.SendCommand(new VMNetDeleteObjectCmd { ObjectID = _obj.ObjectID, CleanupAll = false });
+                        _sendAttempts = 0;
+                        _phase = 21; _phaseTicks = 0;
+                        break;
+
+                    case 21: // the sell became one step; the object is gone; credit landed
+                        if (_arch.UndoStack.CanUndo && _obj.Dead)
+                        {
+                            var b = FamilyBudget(_vm);
+                            Note("sell applied 1 step; budget " + _sellBudget + "->" + b);
+                            if (_hasFamily && b <= _sellBudget) Note("WARNING sell not credited (" + _sellBudget + "->" + b + ") — undo reversal assert relaxed");
+                            _phase = 22; _phaseTicks = 0;
+                        }
+                        else if (++_phaseTicks > PhaseTimeout) { Fail("sell never applied/became a step"); _done = true; }
+                        break;
+
+                    case 22: // UNDO recreates the object (native Create(record#1)) + reverses the credit
+                        UndoCmd(false);
+                        _phase = 23; _phaseTicks = 0;
+                        break;
+
+                    case 23:
+                        if (!_arch.UndoStack.CanUndo && _arch.UndoStack.CanRedo)
+                        {
+                            var back = FindByGuid(_objGuid, _objPre);
+                            if (back == null)
+                                Fail("sell undo did not recreate the object");
+                            else
+                            {
+                                Note("sell undo recreated obj" + back.ObjectID + " at the pre-sell tile");
+                                _obj = back; // track the NEW identity for the redo kill
+                            }
+                            var b2 = FamilyBudget(_vm);
+                            if (_hasFamily && b2 != _sellBudget)
+                                Fail("sell undo credit reversal wrong (" + b2 + " != " + _sellBudget + ")");
+                            _phase = 24; _phaseTicks = 0;
+                        }
+                        else if (++_phaseTicks > PhaseTimeout) { Fail("sell undo never settled"); _done = true; }
+                        break;
+
+                    case 24: // REDO kills it again + re-credits
+                        UndoCmd(true);
+                        _phase = 25; _phaseTicks = 0;
+                        break;
+
+                    case 25:
+                        if (!_arch.UndoStack.CanRedo)
+                        {
+                            if (!_obj.Dead && FindByGuid(_objGuid, _objPre) != null)
+                                Fail("sell redo did not remove the object");
+                            else Note("sell redo removed it again");
+                            _done = true;
+                        }
+                        else if (++_phaseTicks > PhaseTimeout) { Fail("sell redo never settled"); _done = true; }
                         break;
                 }
             }
