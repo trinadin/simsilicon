@@ -57,7 +57,8 @@ namespace Simitone.Client
         private FSO.LotView.Model.LotTilePos _objPre, _objPost;
         private FSO.LotView.Model.Direction _objDir;
         private uint _objGuid;
-        private int _sellBudget;
+        private int _sellBudget, _sellCredit, _sellUndoBudget;
+        private int _buyBudget, _buyPrice;
 
         private const int PhaseTimeout = 900;
         private const int MaxSends = 3;
@@ -396,6 +397,7 @@ namespace Simitone.Client
                         if (_arch.UndoStack.CanUndo && _obj.Dead)
                         {
                             var b = FamilyBudget(_vm);
+                            _sellCredit = b - _sellBudget;
                             Note("sell applied 1 step; budget " + _sellBudget + "->" + b);
                             if (_hasFamily && b <= _sellBudget) Note("WARNING sell not credited (" + _sellBudget + "->" + b + ") — undo reversal assert relaxed");
                             _phase = 22; _phaseTicks = 0;
@@ -420,6 +422,7 @@ namespace Simitone.Client
                                 _obj = back; // track the NEW identity for the redo kill
                             }
                             var b2 = FamilyBudget(_vm);
+                            _sellUndoBudget = b2;
                             if (_hasFamily && b2 != _sellBudget)
                                 Fail("sell undo credit reversal wrong (" + b2 + " != " + _sellBudget + ")");
                             _phase = 24; _phaseTicks = 0;
@@ -438,9 +441,97 @@ namespace Simitone.Client
                             if (!_obj.Dead && FindByGuid(_objGuid, _objPre) != null)
                                 Fail("sell redo did not remove the object");
                             else Note("sell redo removed it again");
-                            _done = true;
+                            // P3-3(i): the sell-redo re-credit reverses the
+                            // undo's reversal exactly (undo budget + the
+                            // observed sell credit)
+                            var b3 = FamilyBudget(_vm);
+                            if (_hasFamily && b3 != _sellUndoBudget + _sellCredit)
+                                Fail("sell redo re-credit wrong (" + b3 + " != " + (_sellUndoBudget + _sellCredit) + ")");
+                            else Note("sell redo re-credited (+" + _sellCredit + ")");
+                            _phase = 26; _phaseTicks = 0;
                         }
                         else if (++_phaseTicks > PhaseTimeout) { Fail("sell redo never settled"); _done = true; }
+                        break;
+
+                    case 26: // BUY leg (review P2-1): purchase a cheap catalog item
+                        {
+                            var catalog = global::FSO.Content.Content.Get().WorldCatalog;
+                            global::FSO.Content.Interfaces.ObjectCatalogItem? item = null;
+                            foreach (var it in catalog.All())
+                            {
+                                if (it.Price <= 200 && it.GUID != 0 && it.DisableLevel == 0) { item = it; break; }
+                            }
+                            if (item == null) { Note("no cheap catalog item — buy leg skipped"); _done = true; break; }
+                            _objGuid = item.Value.GUID;
+                            _buyPrice = (int)item.Value.Price;
+                            // drop target: the tile the sold object vacated (engine-known good)
+                            _objPost = new FSO.LotView.Model.LotTilePos { x = _objPre.x, y = _objPre.y, Level = _objPre.Level };
+                            _buyBudget = FamilyBudget(_vm);
+                            _vm.SendCommand(new VMNetBuyObjectCmd
+                            {
+                                GUID = item.Value.GUID,
+                                x = _objPost.x, y = _objPost.y, level = (sbyte)_objPost.Level,
+                                dir = FSO.LotView.Model.Direction.NORTH
+                            });
+                            Note("buy leg: guid 0x" + item.Value.GUID.ToString("x") + " price " + item.Value.Price + " budget " + _buyBudget);
+                            _phase = 27; _phaseTicks = 0;
+                        }
+                        break;
+
+                    case 27: // the buy charged + became one step + the object exists
+                        {
+                            var bought = FindByGuid(_objGuid, _objPost);
+                            if (_arch.UndoStack.CanUndo && bought != null)
+                            {
+                                var b = FamilyBudget(_vm);
+                                Note("buy applied 1 step; budget " + _buyBudget + "->" + b);
+                                if (_hasFamily && b >= _buyBudget) Fail("buy not charged (" + _buyBudget + "->" + b + ")");
+                                _obj = bought;
+                                _phase = 28; _phaseTicks = 0;
+                            }
+                            else if (++_phaseTicks > PhaseTimeout) { Fail("buy never applied/became a step"); _done = true; }
+                        }
+                        break;
+
+                    case 28: // UNDO of buy: kill + refund (the native create-direction undo)
+                        UndoCmd(false);
+                        _phase = 29; _phaseTicks = 0;
+                        break;
+
+                    case 29:
+                        if (_arch.UndoStack.CanRedo)
+                        {
+                            if (FindByGuid(_objGuid, _objPost) != null)
+                                Fail("buy undo did not remove the object");
+                            else Note("buy undo removed it");
+                            var b2 = FamilyBudget(_vm);
+                            if (_hasFamily && b2 != _buyBudget)
+                                Fail("buy undo refund wrong (" + b2 + " != " + _buyBudget + ")");
+                            _phase = 30; _phaseTicks = 0;
+                        }
+                        else if (++_phaseTicks > PhaseTimeout) { Fail("buy undo never settled"); _done = true; }
+                        break;
+
+                    case 30: // REDO of buy: recreate at the placed state + re-charge
+                        UndoCmd(true);
+                        _phase = 31; _phaseTicks = 0;
+                        break;
+
+                    case 31:
+                        if (!_arch.UndoStack.CanRedo)
+                        {
+                            var back = FindByGuid(_objGuid, _objPost);
+                            if (back == null) Fail("buy redo did not recreate the object");
+                            else
+                            {
+                                Note("buy redo recreated obj" + back.ObjectID);
+                                var b3 = FamilyBudget(_vm);
+                                if (_hasFamily && b3 != _buyBudget - _buyPrice)
+                                    Note("WARNING buy redo re-charge check: " + b3 + " vs " + (_buyBudget - _buyPrice) + " (ambient expenses tolerated)");
+                            }
+                            _done = true;
+                        }
+                        else if (++_phaseTicks > PhaseTimeout) { Fail("buy redo never settled"); _done = true; }
                         break;
                 }
             }

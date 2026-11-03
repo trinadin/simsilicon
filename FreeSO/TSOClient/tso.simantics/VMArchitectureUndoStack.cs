@@ -131,8 +131,10 @@ namespace FSO.SimAntics
     /// RedoSelf: create→CreateObject(#2), move→apply #2, delete→Kill(#1);
     /// UndoSelf mirrors: create→Kill, move→apply #1, delete→Create(#1) via
     /// MakeNewOutOfWorldObject from the stored master selector. MONEY: only
-    /// the create direction carries the signed delta (buy +price; sell
-    /// +depreciated value); moves are free (Cost 0). One Hand-tool action =
+    /// the create direction carries the signed delta — buy submits +price,
+    /// sell stores the depreciated credit NEGATED into Cost (the base
+    /// convention purchase>0 / sellback<0, so undo takes the credit back);
+    /// moves are free (Cost 0). One Hand-tool action =
     /// one step on the ONE mixed stack.
     /// </summary>
     public class VMObjectUndoEntry : VMArchitectureUndoEntry
@@ -142,6 +144,38 @@ namespace FSO.SimAntics
         public const byte ActionDelete = 3;
 
         public byte Action;
+
+        /// <summary>
+        /// Native failure/identity law (decode §1.3/§1.5): the money block
+        /// is gated on the create/kill primitive's success and a stale
+        /// handle entry is invalidated (KillObject entry+0x10=0) — a failed
+        /// step drops the chain. The port's Prepare gates: the target must
+        /// exist AND carry the recorded master GUID (ObjectId recycling
+        /// must never act on the wrong live object); recreate steps are
+        /// always operable. The stack consults Prepare BEFORE the money
+        /// moves and treats false as a failed undo/redo (chain drop).
+        /// </summary>
+        public bool PrepareUndo(VM vm)
+        {
+            if (Action == ActionDelete) return true; // recreate: no live target needed
+            return TargetMatches(vm);
+        }
+
+        public bool PrepareRedo(VM vm)
+        {
+            if (Action == ActionCreate) return true; // recreate: no live target needed
+            return TargetMatches(vm);
+        }
+
+        private bool TargetMatches(VM vm)
+        {
+            var obj = vm.GetObjectById((short)ObjectId);
+            if (obj == null) return false;
+            var guid = (obj.MultitileGroup.MultiTile)
+                ? obj.MultitileGroup.BaseObject.MasterDefinition.GUID
+                : obj.MultitileGroup.BaseObject.Object.OBJ.GUID;
+            return guid == MasterGUID;
+        }
 
         // record #1 (PRE) — the ctor's AssignFromObject capture
         public ushort ObjectId;
@@ -366,6 +400,13 @@ namespace FSO.SimAntics
             var entry = UndoList[UndoList.Count - 1];
             UndoList.RemoveAt(UndoList.Count - 1);
 
+            var objEntry = entry as VMObjectUndoEntry;
+            if (objEntry != null && !objEntry.PrepareUndo(arch.Context.VM))
+            {
+                UndoList.Clear(); // native: a failed/stale step breaks the chain (§3)
+                return false;
+            }
+
             if (!ApplyMoney(arch, entry, true))
             {
                 UndoList.Clear(); // native: a failed undo breaks the chain
@@ -401,6 +442,13 @@ namespace FSO.SimAntics
             if (RedoList.Count == 0) return false;
             var entry = RedoList[RedoList.Count - 1];
             RedoList.RemoveAt(RedoList.Count - 1);
+
+            var objEntryR = entry as VMObjectUndoEntry;
+            if (objEntryR != null && !objEntryR.PrepareRedo(arch.Context.VM))
+            {
+                RedoList.Clear(); // native: a failed/stale redo drops the rest (§3)
+                return false;
+            }
 
             if (!ApplyMoney(arch, entry, false))
             {

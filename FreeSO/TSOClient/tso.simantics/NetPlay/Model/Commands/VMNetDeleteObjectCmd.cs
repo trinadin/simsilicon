@@ -33,7 +33,7 @@ namespace FSO.SimAntics.NetPlay.Model.Commands
                     ObjectId = (ushort)obj.ObjectID,
                     PrePos = obj.Position, PreDir = obj.Direction,
                     MasterGUID = (obj.MultitileGroup.MultiTile)
-                        ? obj.MultitileGroup.BaseObject.MasterDefinition.GUID
+                        ? (obj.MultitileGroup.BaseObject.MasterDefinition ?? obj.MultitileGroup.BaseObject.Object.OBJ).GUID
                         : obj.MultitileGroup.BaseObject.Object.OBJ.GUID,
                     Cost = -value,
                     ActorUID = (caller != null) ? caller.PersistID : 0
