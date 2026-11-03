@@ -420,6 +420,7 @@ namespace Simitone.Client
                     case 14: StateUI30(); break;
                     case 15: StateArchUndo(); break;
                     case 16: StateExp09Io(); break;
+                    case 27: StateBuildUndo2(); break;
                     case 17: StateExp09Route(); break;
                     case 18: StateNBR05UI(); break;
                     case 19: StateNbr06(); break;
@@ -843,6 +844,17 @@ namespace Simitone.Client
                     // disabled (ambient-lottery control).
                     _archundo = new AutotestArchUndo(Log, _screen, CheckEnabled("archundo-probe"));
                     _state = 15;
+                    return;
+                }
+
+                // UI-42 'buildundo2' opt-in (additive): build-mode undo
+                // tranche 2 — terrain drags + roof clicks (+ object legs
+                // when slice 3 lands) on the ONE mixed undo stack. See
+                // AutotestBuildUndo2.cs.
+                if (CheckEnabled("buildundo2"))
+                {
+                    _buildundo2 = new AutotestBuildUndo2(Log, _screen);
+                    _state = 27;
                     return;
                 }
 
@@ -1408,6 +1420,21 @@ namespace Simitone.Client
             Log("AUTOTEST archundo " + _archundo.Diagnostics);
             if (!_archundo.Passed) Log("AUTOTEST archundo FAILURES " + _archundo.Failures);
             _archundo = null;
+            Finish();
+        }
+
+        // UI-42 'buildundo2' (opt-in, additive): build-mode undo tranche 2 —
+        // see AutotestBuildUndo2.cs.
+        private static AutotestBuildUndo2 _buildundo2;
+
+        private static void StateBuildUndo2()
+        {
+            if (_buildundo2 == null) { Finish(); return; }
+            if (!_buildundo2.Tick()) return;
+            if (_buildundo2.Passed) Pass("buildundo2"); else Fail("buildundo2");
+            Log("AUTOTEST buildundo2 " + _buildundo2.Diagnostics);
+            if (!_buildundo2.Passed) Log("AUTOTEST buildundo2 FAILURES " + _buildundo2.Failures);
+            _buildundo2 = null;
             Finish();
         }
 

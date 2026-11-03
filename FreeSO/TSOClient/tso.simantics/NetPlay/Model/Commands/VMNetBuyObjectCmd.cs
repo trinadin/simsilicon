@@ -66,6 +66,23 @@ namespace FSO.SimAntics.NetPlay.Model.Commands
 
                 if (Mode != PurchaseMode.Donate) CreatedGroup.InitialPrice = (int)value;
 
+                // UI-42 tranche 2: the buy submits +price (the native Select
+                // site); undo kills the purchase + refunds, redo recreates at
+                // the placed state (record #2) + re-charges.
+                if (vm.TS1)
+                {
+                    vm.Context.Architecture.UndoStack.Submit(new FSO.SimAntics.VMObjectUndoEntry
+                    {
+                        Action = FSO.SimAntics.VMObjectUndoEntry.ActionCreate,
+                        ObjectId = (ushort)CreatedGroup.BaseObject.ObjectID,
+                        MasterGUID = GUID,
+                        PrePos = LotTilePos.OUT_OF_WORLD, PreDir = dir,
+                        PostPos = new LotTilePos(x, y, level), PostDir = dir,
+                        Cost = (int)value,
+                        ActorUID = (caller != null) ? caller.PersistID : 0
+                    });
+                }
+
                 return true;
             }
             else if (vm.GlobalLink != null && item != null)

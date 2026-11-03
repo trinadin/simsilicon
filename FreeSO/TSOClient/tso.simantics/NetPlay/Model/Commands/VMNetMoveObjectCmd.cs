@@ -23,10 +23,28 @@ namespace FSO.SimAntics.NetPlay.Model.Commands
                     return false;
                 if (!vm.PlatformState.Validator.CanMoveObject(caller, obj)) return false;
             } else if (obj == null) return false;
+            // UI-42 tranche 2: record #1 (PRE) — the native ctor's
+            // AssignFromObject capture; moves carry no money (Cost 0).
+            var prePos = obj.Position;
+            var preDir = obj.Direction;
             var result = obj.SetPosition(new LotTilePos(x, y, level), dir, vm.Context, VMPlaceRequestFlags.UserPlacement);
             if (result.Status == VMPlacementError.Success)
             {
                 obj.MultitileGroup.ExecuteEntryPoint(11, vm.Context); //User Placement
+                if (vm.TS1)
+                {
+                    vm.Context.Architecture.UndoStack.Submit(new FSO.SimAntics.VMObjectUndoEntry
+                    {
+                        Action = FSO.SimAntics.VMObjectUndoEntry.ActionMove,
+                        ObjectId = (ushort)obj.ObjectID,
+                        MasterGUID = (obj.MultitileGroup.MultiTile)
+                            ? (obj.MultitileGroup.BaseObject.MasterDefinition ?? obj.MultitileGroup.BaseObject.Object.OBJ).GUID
+                            : obj.MultitileGroup.BaseObject.Object.OBJ.GUID,
+                        PrePos = prePos, PreDir = preDir,
+                        PostPos = new LotTilePos(x, y, level), PostDir = dir,
+                        ActorUID = (caller != null) ? caller.PersistID : 0
+                    });
+                }
 
                 vm.SignalChatEvent(new VMChatEvent(caller, VMChatEventType.Arch,
                     caller?.Name ?? "Unknown",

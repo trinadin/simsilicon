@@ -39,6 +39,15 @@ namespace FSO.SimAntics
     /// reach the stack because the port refuses them pre-transaction in
     /// VMTS1GlobalLinkStub.Tick (native flush-on-commit-fail is unreachable).
     /// </summary>
+    /// <summary>
+    /// UI-42 tranche 2 — one build-mode undo step. The native UndoManager
+    /// (r256 §1-§6) holds ONE mixed stack: wall/floor drags, terrain drags,
+    /// roof clicks and Hand-tool object actions all submit Undoable records
+    /// to the same lists. The port models the domain payloads as virtual
+    /// Restore/Replay on the entry: the architecture batch (this class) is
+    /// one kind; VMObjectUndoEntry and VMRoofUndoEntry (below) are the
+    /// tranche-2 kinds.
+    /// </summary>
     public class VMArchitectureUndoEntry
     {
         /// <summary>The applied batch (per drag) — replayed verbatim on redo.</summary>
@@ -52,6 +61,211 @@ namespace FSO.SimAntics
 
         /// <summary>Pre-batch story snapshots, keyed by level (1-based).</summary>
         public Dictionary<int, VMArchitectureStorySnapshot> Saved;
+
+        /// <summary>
+        /// UI-42 tranche 2: the terrain drag's pre-batch grid — the native
+        /// TerrainUndoable::TakeSnapshot law (r256 §4: FULL-grid snapshot of
+        /// the 4-corner heights + the second per-tile array; the port adds
+        /// Sloped, which is corner-derived but only recomputed on load, so a
+        /// restore that skipped it would leave stale slope state). Null for
+        /// pure architecture batches.
+        /// </summary>
+        public VMArchitectureTerrainSnapshot Terrain;
+
+        /// <summary>
+        /// Native UndoSelf (law §3/§4): restore the recorded pre-change
+        /// state. The base implementation restores the wall/floor story
+        /// snapshots and the terrain grid, then rebuilds derived state.
+        /// </summary>
+        public virtual void Restore(VMArchitecture arch)
+        {
+            if (Saved != null)
+            {
+                foreach (var kv in Saved)
+                {
+                    var walls = arch.Walls[kv.Key - 1];
+                    var floors = arch.Floors[kv.Key - 1];
+                    Array.Copy(kv.Value.Walls, walls, walls.Length);
+                    Array.Copy(kv.Value.Floors, floors, floors.Length);
+                }
+            }
+            if (Terrain != null)
+            {
+                var t = arch.Terrain;
+                Array.Copy(Terrain.Heights, t.Heights, t.Heights.Length);
+                Array.Copy(Terrain.Grass, t.GrassState, t.GrassState.Length);
+                Array.Copy(Terrain.Sloped, t.Sloped, t.Sloped.Length);
+                arch.SignalTerrainRedraw(); // native DirtyTileNeighborhood → the port's regen path
+            }
+        }
+
+        /// <summary>
+        /// Native RedoSelf (law §3): re-apply the change. The base
+        /// implementation replays the recorded batch — bit-identical for
+        /// terrain too (set-semantics flood-fill from the restored grid;
+        /// documented tranche-1 deviation from the native snapshot swap).
+        /// </summary>
+        public virtual void Replay(VMArchitecture arch)
+        {
+            arch.RunCommands(Forward, false);
+        }
+    }
+
+    /// <summary>UI-42: pre-batch terrain grid (native TakeSnapshot payload).</summary>
+    public class VMArchitectureTerrainSnapshot
+    {
+        public short[] Heights;
+        public byte[] Grass;
+        public bool[] Sloped;
+    }
+
+    /// <summary>
+    /// UI-42 tranche 2 — the native ObjectUndoable law (decoded
+    /// coordination/evidence/UI-42/native-object-terrain-undo-law.md):
+    /// TWO records, not a swap — record #1 (PRE) captured by the ctor via
+    /// AssignFromObject (placement, level, container, the ObjSelector) and
+    /// record #2 (POST) captured at CommitSelf; undo applies #1, redo
+    /// applies #2, nothing reads live state at undo time. Action enum
+    /// (dispatched at UndoSelf/RedoSelf): 0 = create, 1 = move (2 = a
+    /// second move flavor the binary never constructs), 3 = delete.
+    /// RedoSelf: create→CreateObject(#2), move→apply #2, delete→Kill(#1);
+    /// UndoSelf mirrors: create→Kill, move→apply #1, delete→Create(#1) via
+    /// MakeNewOutOfWorldObject from the stored master selector. MONEY: only
+    /// the create direction carries the signed delta — buy submits +price,
+    /// sell stores the depreciated credit NEGATED into Cost (the base
+    /// convention purchase>0 / sellback<0, so undo takes the credit back);
+    /// moves are free (Cost 0). One Hand-tool action =
+    /// one step on the ONE mixed stack.
+    /// </summary>
+    public class VMObjectUndoEntry : VMArchitectureUndoEntry
+    {
+        public const byte ActionCreate = 0;
+        public const byte ActionMove = 1;
+        public const byte ActionDelete = 3;
+
+        public byte Action;
+
+        /// <summary>
+        /// Native failure/identity law (decode §1.3/§1.5): the money block
+        /// is gated on the create/kill primitive's success and a stale
+        /// handle entry is invalidated (KillObject entry+0x10=0) — a failed
+        /// step drops the chain. The port's Prepare gates: the target must
+        /// exist AND carry the recorded master GUID (ObjectId recycling
+        /// must never act on the wrong live object); recreate steps are
+        /// always operable. The stack consults Prepare BEFORE the money
+        /// moves and treats false as a failed undo/redo (chain drop).
+        /// </summary>
+        public bool PrepareUndo(VM vm)
+        {
+            if (Action == ActionDelete) return true; // recreate: no live target needed
+            return TargetMatches(vm);
+        }
+
+        public bool PrepareRedo(VM vm)
+        {
+            if (Action == ActionCreate) return true; // recreate: no live target needed
+            return TargetMatches(vm);
+        }
+
+        private bool TargetMatches(VM vm)
+        {
+            var obj = vm.GetObjectById((short)ObjectId);
+            if (obj == null) return false;
+            var guid = (obj.MultitileGroup.MultiTile)
+                ? obj.MultitileGroup.BaseObject.MasterDefinition.GUID
+                : obj.MultitileGroup.BaseObject.Object.OBJ.GUID;
+            return guid == MasterGUID;
+        }
+
+        // record #1 (PRE) — the ctor's AssignFromObject capture
+        public ushort ObjectId;
+        public uint MasterGUID;
+        public LotView.Model.LotTilePos PrePos;
+        public FSO.LotView.Model.Direction PreDir;
+
+        // record #2 (POST) — CommitSelf's capture (the placed state for
+        // moves/creates; unused for delete whose redo is Kill of the
+        // recreated instance)
+        public LotView.Model.LotTilePos PostPos;
+        public FSO.LotView.Model.Direction PostDir;
+
+        public override void Restore(VMArchitecture arch)
+        {
+            var vm = arch.Context.VM;
+            if (vm == null) return;
+            if (Action == ActionMove) Apply(vm, ObjectId, PrePos, PreDir);
+            else if (Action == ActionCreate) Kill(vm, ObjectId);
+            else if (Action == ActionDelete) ObjectId = Create(vm, MasterGUID, PrePos, PreDir);
+        }
+
+        public override void Replay(VMArchitecture arch)
+        {
+            var vm = arch.Context.VM;
+            if (vm == null) return;
+            if (Action == ActionMove) Apply(vm, ObjectId, PostPos, PostDir);
+            else if (Action == ActionCreate) ObjectId = Create(vm, MasterGUID, PostPos, PostDir);
+            else if (Action == ActionDelete) Kill(vm, ObjectId);
+        }
+
+        /// <summary>native InvokeOntoObject(record): re-apply the placement
+        /// through the same production path the move command uses.</summary>
+        private static void Apply(VM vm, ushort id, LotView.Model.LotTilePos pos, FSO.LotView.Model.Direction dir)
+        {
+            var obj = vm.GetObjectById((short)id);
+            if (obj == null) return;
+            obj.SetPosition(pos, dir, vm.Context, Model.VMPlaceRequestFlags.UserPlacement);
+            obj.MultitileGroup.ExecuteEntryPoint(11, vm.Context); // User Placement
+        }
+
+        /// <summary>native KillObject: the production delete flow minus the
+        /// money (the stack's money law owns the transaction).</summary>
+        private static void Kill(VM vm, ushort id)
+        {
+            var obj = vm.GetObjectById((short)id);
+            if (obj == null) return;
+            obj.ExecuteEntryPoint(12, vm.Context, true);
+            obj.Delete(false, vm.Context);
+        }
+
+        /// <summary>native ObjectState::CreateObject / MakeNewOutOfWorldObject:
+        /// recreate from the stored master selector at the recorded
+        /// placement. Returns the NEW base id (the instance identity changes
+        /// across kill/create — the native record holds state, not identity,
+        /// so the port entry refreshes its id after every recreate).</summary>
+        private static ushort Create(VM vm, uint guid, LotView.Model.LotTilePos pos, FSO.LotView.Model.Direction dir)
+        {
+            var group = vm.Context.CreateObjectInstance(guid, pos, dir);
+            group.ExecuteEntryPoint(11, vm.Context); // User Placement
+            return (ushort)group.BaseObject.ObjectID;
+        }
+    }
+    /// <summary>
+    /// UI-42 tranche 2 — the native cRoofUndoable law (r256 §4 + the UI-42
+    /// decode's fourth confirmation): stores the
+    /// PREVIOUS roof pattern + pitch; UndoSelf SWAPS stored ↔ current (style
+    /// then pitch) and RedoSelf is a 44-byte tail-call to UndoSelf — roof
+    /// undo/redo is a PURE TOGGLE. The port models the toggle as a Swap used
+    /// by both directions. CommitSelf is the base default (return 0): roof
+    /// changes carry no money law. Submitted per click from the roof panel
+    /// (the native cWinRoofPanel ×2 submit sites = the port's
+    /// VMNetSetRoofCmd).
+    /// </summary>
+    public class VMRoofUndoEntry : VMArchitectureUndoEntry
+    {
+        /// <summary>The pre-change values (what undo restores); swapped on every apply.</summary>
+        public uint Style;
+        public float Pitch;
+
+        public override void Restore(VMArchitecture arch) { Swap(arch); }
+        public override void Replay(VMArchitecture arch) { Swap(arch); }
+
+        private void Swap(VMArchitecture arch)
+        {
+            var s = arch.RoofStyle;
+            var p = arch.RoofPitch;
+            arch.SetRoof(Pitch, Style); // applies the stored pair (world refresh inside)
+            Style = s; Pitch = p;       // native swap: displaced current becomes stored
+        }
     }
 
     /// <summary>
@@ -130,14 +344,18 @@ namespace FSO.SimAntics
                     cmd.Type == VMArchitectureCommandType.TERRAIN_FLATTEN ||
                     cmd.Type == VMArchitectureCommandType.GRASS_DOT)
                 {
-                    hasTerrain = true; // tranche 1: terrain batches are not captured (design §4)
+                    hasTerrain = true; // UI-42 tranche 2: terrain drags now capture (native TerrainUndoable)
                 }
-                var level = cmd.level;
-                if (level < 1) level = 1;
-                if (level > arch.Stories) level = (sbyte)arch.Stories;
-                if (!levels.Contains(level)) levels.Add(level);
+                else if (!levels.Contains(cmd.level < 1 ? 1 : (cmd.level > arch.Stories ? arch.Stories : cmd.level)))
+                {
+                    // story snapshots only for architecture commands (pure
+                    // terrain batches never touch walls/floors)
+                    var level = cmd.level;
+                    if (level < 1) level = 1;
+                    if (level > arch.Stories) level = (sbyte)arch.Stories;
+                    levels.Add(level);
+                }
             }
-            if (hasTerrain) return null;
 
             var entry = new VMArchitectureUndoEntry
             {
@@ -155,6 +373,18 @@ namespace FSO.SimAntics
                 Array.Copy(floors, snapFloors, floors.Length);
                 entry.Saved[level] = new VMArchitectureStorySnapshot { Walls = snapWalls, Floors = snapFloors };
             }
+            if (hasTerrain)
+            {
+                // native TerrainUndoable::TakeSnapshot (r256 §4): full grid,
+                // taken once per drag (one drag = one undo step, law §6)
+                var t = arch.Terrain;
+                entry.Terrain = new VMArchitectureTerrainSnapshot
+                {
+                    Heights = (short[])t.Heights.Clone(),
+                    Grass = (byte[])t.GrassState.Clone(),
+                    Sloped = (bool[])t.Sloped.Clone()
+                };
+            }
             return entry;
         }
 
@@ -170,6 +400,13 @@ namespace FSO.SimAntics
             var entry = UndoList[UndoList.Count - 1];
             UndoList.RemoveAt(UndoList.Count - 1);
 
+            var objEntry = entry as VMObjectUndoEntry;
+            if (objEntry != null && !objEntry.PrepareUndo(arch.Context.VM))
+            {
+                UndoList.Clear(); // native: a failed/stale step breaks the chain (§3)
+                return false;
+            }
+
             if (!ApplyMoney(arch, entry, true))
             {
                 UndoList.Clear(); // native: a failed undo breaks the chain
@@ -179,13 +416,7 @@ namespace FSO.SimAntics
             CaptureSuspended = true;
             try
             {
-                foreach (var kv in entry.Saved)
-                {
-                    var walls = arch.Walls[kv.Key - 1];
-                    var floors = arch.Floors[kv.Key - 1];
-                    Array.Copy(kv.Value.Walls, walls, walls.Length);
-                    Array.Copy(kv.Value.Floors, floors, floors.Length);
-                }
+                entry.Restore(arch);
                 arch.RebuildWallsAt();     // native UndoOne + list rebuild
                 arch.SignalAllDirty();     // keep the dirty flags the Tick path expects
                 arch.RegenRoomMap();       // native DirtyTileNeighborhood/room regen equivalent
@@ -212,6 +443,13 @@ namespace FSO.SimAntics
             var entry = RedoList[RedoList.Count - 1];
             RedoList.RemoveAt(RedoList.Count - 1);
 
+            var objEntryR = entry as VMObjectUndoEntry;
+            if (objEntryR != null && !objEntryR.PrepareRedo(arch.Context.VM))
+            {
+                RedoList.Clear(); // native: a failed/stale redo drops the rest (§3)
+                return false;
+            }
+
             if (!ApplyMoney(arch, entry, false))
             {
                 RedoList.Clear(); // native: a failed redo drops the rest of the redo list
@@ -223,7 +461,7 @@ namespace FSO.SimAntics
             {
                 // state is bit-identical to pre-batch after undo, so the batch
                 // replays cleanly (design §2; native forward-iteration law §4).
-                arch.RunCommands(entry.Forward, false);
+                entry.Replay(arch);
             }
             finally
             {
