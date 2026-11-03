@@ -310,9 +310,23 @@ namespace Simitone.Client
                             _objGuid = (_obj.MultitileGroup.MultiTile)
                                 ? _obj.MultitileGroup.BaseObject.MasterDefinition.GUID
                                 : _obj.MultitileGroup.BaseObject.Object.OBJ.GUID;
-                            var nx = (short)(_objPre.x + 4 * 16); var ny = _objPre.y;
-                            _objPost = new FSO.LotView.Model.LotTilePos { x = nx, y = ny, Level = _objPre.Level };
-                            Note("object leg: obj" + _obj.ObjectID + " guid 0x" + _objGuid.ToString("x") + " at " + _objPre.x / 16 + "," + _objPre.y / 16);
+                            // engine-validated drop target: the same gate
+                            // SetPosition applies (FindWallSpot's discipline)
+                            bool found = false;
+                            foreach (var off in new int[] { 4, -4, 6, -6, 8, -8, 2, -2, 10, -10 })
+                            {
+                                var t = new FSO.LotView.Model.LotTilePos
+                                    { x = (short)(_objPre.x + off * 16), y = _objPre.y, Level = _objPre.Level };
+                                if (_obj.PositionValid(t, _objDir, _vm.Context,
+                                        FSO.SimAntics.Model.VMPlaceRequestFlags.UserPlacement).Status
+                                    == FSO.SimAntics.Model.VMPlacementError.Success)
+                                {
+                                    _objPost = t; found = true; break;
+                                }
+                            }
+                            if (!found) { Note("no engine-valid move target — object legs skipped"); _done = true; break; }
+                            Note("object leg: obj" + _obj.ObjectID + " guid 0x" + _objGuid.ToString("x") + " at " + _objPre.x / 16 + "," + _objPre.y / 16
+                                + " -> " + _objPost.x / 16 + "," + _objPost.y / 16);
                             _phase = 14; _phaseTicks = 0; _sendAttempts = 0;
                         }
                         break;
