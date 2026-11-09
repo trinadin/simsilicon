@@ -36,38 +36,34 @@ engine is corrected to match it — constants, thresholds, formulas and all (see
 ## Status — and how you can help
 
 **Playable:** boots to gameplay, loads and saves neighbourhoods and houses, plays the core
-single-family game — verified by a 156-check automated battery that boots the real game
+single-family game — verified by a 162-check automated battery that boots the real game
 headlessly and exercises gameplay, UI, saves, sound, and the autonomy engine on every
 change (run it yourself with `tools/run-autotest.sh`; the one-page state summary is
 [PARITY.md](PARITY.md) → "Where the game stands"). Every release artifact is validated by running the battery against the packed `.app` itself, not just the build tree.
 
-**Honest status:** this is an **engine parity project, not a finished 1:1 clone** — and it
-needs real-world testing on real Macs and real saves. That's where you come in:
+**Honest status:** the port is complete on every machine-checkable axis — a final
+independent review returned a FULL-PORT verdict, and a follow-up completeness pass
+against the original PowerPC binary (every one of its ~11,900 named functions
+cross-checked) found zero silent omissions. Every gameplay law that differs from the
+2000 original has been corrected against the disassembled binary, including constants,
+thresholds and formulas. What machines cannot certify is the part that needs you:
 
-- **Play it.** Every hour of real play on hardware we don't have is a contribution.
+- **Play it.** Every hour of real play on hardware we don't have is a contribution —
+  the systematic human acceptance pass is the one open item.
 - **Report what breaks.** Open a [GitHub Issue](https://github.com/trinadin/simsilicon/issues) —
   the bug template asks for your Mac model, macOS version, and game-data source, and the two logs
   below. Vague reports can't be fixed; pinned ones can.
 - **Attach the logs.** `~/Documents/Simitone/game.log` (screen/content-load tracing) and the
   crash log next to it. They're plain text — paste the tail (last ~50 lines) or the whole thing.
-- **Know the known gaps before filing.** The current gap list lives in
-  [PARITY.md](PARITY.md) → "Where the game stands". As of 2026-10-12: footsteps,
-  the neighbourhood layout montage, the UL filter toolbar, Superstar's fame
-  surfaces and gendered job titles, Vacation's save-on-vacation/bookings and
-  score/souvenir systems, Makin' Magic's quest lines, the near-screen-edge
-  audio rolloff + per-track channel attribution, the Quick Tips presenter
-  (including the camera-panel surface — the Snapshot Sizes / Quality Settings
-  group popups), and the Interface FX (BoboVision) mode-window fades are on decoded native
-  laws; the view-pie pop gesture stays a disclosed model (the original's
-  window-manager vtable was not shipped — not statically recoverable). The
-  vacation souvenir carry-home is live end-to-end for every stocked
-  souvenir (return push → walked drops → placed in-world → persisting).
-  Human
-  verification of the whole is
-  still partial (heavily automated; played and accepted hands-on in portions).
+- **Know the known gaps before filing.** The current state lives in
+  [PARITY.md](PARITY.md) → "Where the game stands". As of 2026-11-03 the
+  machine-verifiable gap list is empty; what remains open by nature is
+  human-sensory verification (long-play sessions, audio on real speakers/
+  headphones, hardware feel such as trackpad scrolling) and outputs whose
+  original receiver no longer exists (the dead TheSims.com export payloads).
   Duplicate-gap reports will be closed with a pointer.
-- **Code welcome.** MPL-2.0 — PRs are open. PARITY.md's gap table is the roadmap; small,
-  well-evidenced fixes (see the PROVENANCE discipline) land fastest.
+- **Code welcome.** MPL-2.0 — PRs are open. Small, well-evidenced fixes (see the
+  PROVENANCE discipline) land fastest.
 
 ## Game data
 

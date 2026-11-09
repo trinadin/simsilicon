@@ -7,13 +7,35 @@
 
 **Goal:** drive the game as close to 1:1 behavior with the original *The Sims* (2000) as feasible, verified against the original IFF data and the original PowerPC binary. Every claim is labelled with its source; nothing is asserted from live play unless a read/write trace proves it. IFF-literalism and binary decode are the verification standards.
 
-## Where the game stands — v0.9.2+, 2026-10-09 (READ THIS FIRST)
+## Where the game stands — v0.9.5, 2026-11-03 (READ THIS FIRST)
 
 This section is the current truth. Everything below it is the historical round record
 (newest-first-ish through late September) — rows there may be superseded; where a row was
 later overturned, corrections are noted in place or here.
 
-**Verified working** (the default 156-check battery boots the real game headlessly and
+**Completeness endgame (2026-10-24 → 2026-11-03).** The owner's reconciliation
+directive retired ALL THREE REL-10 "permanent" disclosures on freshly decoded
+law — GenericCall-13 (SIM-21, the full native CleanupPeople law), touch-path
+CAS (CAS-03, original screens unconditional), and the view-pie pop (UI-41/41b,
+command-driven + modal pop chain with the decoded 333 ms async-hold constant;
+the sole caveat in the whole story is the 333 clock-unit reading, recorded
+not hidden). SIM-22 then settled the last career branch: B6 is STATICALLY
+UNREACHABLE in the shipped 4103 and the level-0 fine-deducted pay is the
+constant +155 — the engine matches the native BHAV data exactly, branch by
+branch. REL-15 (the REA completeness pass) machine-verified the port against
+the PPC binary: 0 silent omissions across all 11,897 named native functions,
+with exactly two flags (object + terrain undo), both CLOSED as UI-42 on
+decoded laws alongside the roof toggle — all undo domains now ride the ONE
+mixed stack. v0.9.5 shipped from this state (release battery 162/0 from the
+dist). **Zero "permanent impossibility" disclosures remain.** The honest
+remainder is owner-side acceptance only: the REL-06 optional human
+spot-check, the REL-07 user-gated multi-day/multi-hardware long-play and
+budget agreement, and the audio hardware listen-run — plus the
+permanent-by-nature class (dead TheSims.com service payloads — the export
+machinery around them IS ported; no-surface audio items whose data never
+shipped, e.g. the snow-terrain field).
+
+**Verified working** (the default 162-check battery boots the real game headlessly and
 exercises all of this on every change; `tools/run-autotest.sh`; opt-in batteries
 `nbr06`, `nbr05ui`, `nghbtns`, `freewillwin`, `moodlaw`, `trv05`, `hdserve`, `homepark`
 cover the decode-pinned laws; `ulpets` rides the default suite since EXP-15's
@@ -57,9 +79,15 @@ idiom + a bounded watchdog. TWO consecutive 156/0 batteries on merged main
   pairing resolved (native BUILD+CAMERA / BUY+LIVE drives; port pairing
   equivalent on the correlated visit-lock path) — plus, 2026-10-25 (NBR-09), the OTHER hide-slot half PORTED: `CPState::HideButtonsForLocation` (away lots hide the funds readout + camera button; home shows both; `uicp` gate leg). NBR-08 mounts
   the zone-choice DIALOG itself + the venue/base bulldoze sound bracket
-  (`nbr07` gate). Remaining: evict web-export (ENG-27 scope), the Magic
+  (`nbr07` gate). ~~Remaining: evict web-export (ENG-27 scope), the Magic
   [16]/[17] vacation pre-scan (needs port vacation state), the +0x100/+0x1a8
-  hide elements (no port counterpart).
+  hide elements (no port counterpart).~~ **ALL THREE RETIRED: the Magic
+  [16]/[17] vacation pre-scan CLOSED 2026-10-14 (NBR-07 — the "no port
+  vacation state" premise was stale; TRV-05 populates FAMI.VacationHouseNumber
+  and the refusal leg is decoded + ported), and the +0x100/+0x1a8 hide
+  elements CLOSED 2026-10-25 (NBR-09 HideButtonsForLocation — the last "no
+  port counterpart" disclosure). Evict web-export remains a named
+  micro-residual (ENG-27 scope).**
 - ~~Sound trace~~ **ROUND 1 DONE (AUD-19)** + **FOOTSTEPS CLOSED (AUD-20,
   2026-10-08)**: the footstep class is live on the decoded native law —
   authored anim-event triggers (±1/±2 forward/backward), the native gate

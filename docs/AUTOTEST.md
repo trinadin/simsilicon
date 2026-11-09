@@ -239,12 +239,19 @@ Opt-in takeovers (end the run at their verdict; run solo):
 The default Checks list is (verbatim; `uiinterest` appears twice — noted as harmless and
 retained above verbatim):
 
-    corpus,lot,motive,mood,load,savedthreads,relation,censor,rel-key,rel-mode,names,audio,jobs,npcinfo,persondata,travelinv,career,freewill,freewillvar,personality,motiveinit,skills,motiveact,relact,money,ttab,ttas,opcodes,genericcall12,genericcall13,genericcall14,callgraph,globalcalls,catalog,snd,iff,objd,ctss,strs,consts,bhvi,bhop,dgrp,slot,operand,opmx,chunks,brainlive,deathchain,savesim,uidump,uipal,loadscreen,carseek,uichrome,uitoolbar,uicur,uiglyph,uiboot,uilogo,uianim,uinbhd,uisplash,uidialog,uilotq,uilive,uijob,uivis,uicas,uidtips,uivfont,uimpanel,uiopts,uibuy,uiexpband,uibandlaw,uienamat,uiinterest,uiintvals,uiexpint,uiexprand,uiconv,uibrand,uidesc,uitt,uibuild,uibldt,uiinterest,uiroof,uigauge,uirate,uihouse,uivalue,uitext,uisurvey,uizoomcage,uicp,uidlgchrome,uibargeom,uiqueuegeom,uicasorig,uirel,uinav,uibudget,uihelp,uiscrap,uipie,uiphone,uismall,uiballoon,uisyschrome,uibigbtn,simvis,uidirt,uistrfam,uifriend,uipanelentry,uicheat,uitrans,uivita,uivitaplay,uicheathelp,uitotal,uiviewpie,censorpixel,roomlaw,uitutorial,uicapture,uipip,uiclip,uicutaway,uitutorial-highlight,uir258,uitall,webexport,ui37,aud19,cc06,uidtbar,aud20,aud22,ssfame,mmquest,ulpets,ui39,ui40
+    corpus,lot,motive,mood,load,savedthreads,relation,censor,rel-key,rel-mode,names,audio,jobs,npcinfo,persondata,travelinv,career,freewill,freewillvar,personality,motiveinit,skills,motiveact,relact,money,ttab,ttas,opcodes,genericcall12,genericcall13,g13clean,genericcall14,cas03,callgraph,globalcalls,catalog,snd,iff,objd,ctss,strs,consts,bhvi,bhop,dgrp,slot,operand,opmx,chunks,brainlive,deathchain,savesim,uidump,uipal,loadscreen,carseek,uichrome,uitoolbar,uicur,uiglyph,uiboot,uilogo,uianim,uinbhd,uisplash,uidialog,uilotq,uilive,uijob,uivis,uicas,uidtips,uivfont,uimpanel,uiopts,uibuy,uiexpband,uibandlaw,uienamat,uiinterest,uiintvals,uiexpint,uiexprand,uiconv,uibrand,uidesc,uitt,uibuild,uibldt,uiinterest,uiroof,uigauge,uirate,uihouse,uivalue,uitext,uisurvey,uizoomcage,uicp,uidlgchrome,uibargeom,uiqueuegeom,uicasorig,uirel,uinav,uibudget,uihelp,uiscrap,uipie,uipiesub,uiphone,uismall,uiballoon,uisyschrome,uibigbtn,simvis,uidirt,uistrfam,uifriend,uipanelentry,uicheat,uitrans,uivita,uivitaplay,uicheathelp,uitotal,uiviewpie,censorpixel,roomlaw,uitutorial,uicapture,uipip,uiclip,uicutaway,uitutorial-highlight,uir258,uitall,webexport,ui37,aud19,cc06,uidtbar,aud20,aud22,ssfame,mmquest,ulpets,ui39,ui40
 
-**Default gate count.** The default gate is 160 checks. The count grew
-106→107→…→128 over the base-game rounds (R169–R221), and then to 160 in the 2026
+**Default gate count.** The default gate is 162 checks. The count grew
+106→107→…→128 over the base-game rounds (R169–R221), to 160 in the 2026
 wave gates (ui37/aud19/cc06/uidtbar/aud20/aud22/ssfame/mmquest/ulpets/ui39/ui40)
-plus the R238–R252 additions. Per-check origin and decoded laws are in the ROUND
+plus the R238–R252 additions, and to 162 with the 2026-10-24 reconciliation
+gates (`g13clean` — SIM-21's full native CleanupPeople law on the malformed
+GenericCall-13 path; `cas03` — CAS-03's unconditional original CAS composition
+on the touch path). Late opt-in gates (not in the default count): `uiviewpie`
+gained the 332/333 dwell-boundary legs (UI-41b, 2026-10-25), `careerb6` is the
+SIM-22 standing NEGATIVE-CONTROL gate (run solo), and `buildundo2` covers the
+UI-42 undo domains (objects/terrain/roof; run solo, `corpus` required for
+dispatch). Per-check origin and decoded laws are in the ROUND
 HISTORY section below; the checks whose laws are recorded only in the build-up
 (some never repeated in the round catalog) are captured in the following origins
 list, each carrying its decoded law.
